@@ -20,9 +20,9 @@ provider "azurerm" {
 # Add provider configuration for REST API
 provider "restapi" {
   insecure = true
-  uri      = trimsuffix(var.tower_api_endpoint, "/")
+  uri      = trimsuffix(var.seqera_api_endpoint, "/")
   headers = {
-    "Authorization" = "Bearer ${var.tower_access_token}"
+    "Authorization" = "Bearer ${var.seqera_access_token}"
     "Content-Type"  = "application/json"
     "Accept"        = "application/json"
   }
@@ -35,7 +35,7 @@ locals {
   # Matches numbers after any letter series (like D, DS, NP, L, etc.)
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
-  compute_env_name = coalesce(var.tower_compute_env_name, var.batch_pool_name)
+  compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
 }
 
 # Batch pool
@@ -125,21 +125,21 @@ resource "azurerm_batch_pool" "pool" {
 }
 
 # Replace null_resource with restapi_object
-resource "restapi_object" "tower_compute_env" {
-  count          = var.create_tower_compute_env ? 1 : 0
+resource "restapi_object" "seqera_compute_env" {
+  count          = var.create_seqera_compute_env ? 1 : 0
   path           = "/compute-envs"
-  query_string   = "workspaceId=${var.tower_workspace_id}"
+  query_string   = "workspaceId=${var.seqera_workspace_id}"
   create_method  = "POST"
   id_attribute   = "computeEnvId"
   destroy_method = "DELETE"
 
   data = jsonencode({
     computeEnv = {
-      credentialsId = var.tower_credentials_id
+      credentialsId = var.seqera_credentials_id
       name          = local.compute_env_name
       platform      = "azure-batch"
       config = {
-        workDir                 = var.tower_work_dir
+        workDir                 = var.seqera_work_dir
         region                  = data.azurerm_resource_group.rg.location
         headPool                = var.batch_pool_name
         managedIdentityClientId = data.azurerm_user_assigned_identity.mi.client_id

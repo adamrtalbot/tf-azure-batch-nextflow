@@ -78,7 +78,7 @@ variable "managed_identity_name" {
 variable "managed_identity_resource_group" {
   description = "Resource group containing the managed identity"
   type        = string
-  default     = "rg-joint-jackass"
+  default     = null
 }
 
 variable "min_pool_size" {
@@ -87,50 +87,50 @@ variable "min_pool_size" {
   default     = 0
 }
 
-variable "create_tower_compute_env" {
-  description = "Whether to create a Tower compute environment"
+variable "create_seqera_compute_env" {
+  description = "Whether to create a seqera compute environment"
   type        = bool
   default     = false
 }
 
-variable "tower_api_endpoint" {
-  description = "Tower API endpoint URL"
+variable "seqera_api_endpoint" {
+  description = "Seqera API endpoint URL"
   type        = string
   default     = "https://api.cloud.seqera.io"
 }
 
-variable "tower_access_token" {
-  description = "Tower API access token"
+variable "seqera_access_token" {
+  description = "Seqera API access token"
   type        = string
   default     = null
   sensitive   = true
 }
 
-variable "tower_workspace_id" {
-  description = "Tower workspace ID where the compute environment will be created"
+variable "seqera_workspace_id" {
+  description = "Seqera workspace ID where the compute environment will be created"
   type        = number
   default     = null
 }
 
-variable "tower_compute_env_name" {
-  description = "Name of the Tower compute environment. Defaults to batch_pool_name if not specified"
+variable "seqera_compute_env_name" {
+  description = "Name of the Seqera compute environment. Defaults to batch_pool_name if not specified"
   type        = string
   default     = null
 }
 
-variable "tower_work_dir" {
-  description = "Work directory for the Tower compute environment. Must start with 'az://'"
+variable "seqera_work_dir" {
+  description = "Work directory for the Seqera compute environment. Must start with 'az://'"
   type        = string
   default     = null
 
   validation {
-    condition     = can(regex("^az://", var.tower_work_dir))
-    error_message = "The tower_work_dir must start with 'az://'."
+    condition     = can(regex("^az://", var.seqera_work_dir))
+    error_message = "The seqera_work_dir must start with 'az://'."
   }
 }
 
-variable "tower_credentials_id" {
-  description = "Tower Azure credentials ID"
+variable "seqera_credentials_id" {
+  description = "Seqera Azure credentials ID"
   type        = string
   default     = null
 }
