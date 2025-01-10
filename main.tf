@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
+    restapi = {
+      source  = "Mastercard/restapi"
+      version = "~> 1.18"
+    }
   }
 }
 
@@ -13,11 +17,25 @@ provider "azurerm" {
   features {}
 }
 
+# Add provider configuration for REST API
+provider "restapi" {
+  insecure = true
+  uri      = trimsuffix(var.tower_api_endpoint, "/")
+  headers = {
+    "Authorization" = "Bearer ${var.tower_access_token}"
+    "Content-Type"  = "application/json"
+    "Accept"        = "application/json"
+  }
+  write_returns_object  = true
+  create_returns_object = true
+}
+
 locals {
   # Extract number from VM size using regex
   # Matches numbers after any letter series (like D, DS, NP, L, etc.)
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
-  slots = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
+  slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
+  compute_env_name = coalesce(var.tower_compute_env_name, var.batch_pool_name)
 }
 
 # Batch pool
@@ -39,10 +57,10 @@ resource "azurerm_batch_pool" "pool" {
   }
 
   dynamic "identity" {
-    for_each = length(var.identity_ids) > 0 ? [1] : []
+    for_each = var.managed_identity_name != "" ? [1] : []
     content {
       type         = "UserAssigned"
-      identity_ids = var.identity_ids
+      identity_ids = [data.azurerm_user_assigned_identity.mi.id]
     }
   }
 
@@ -71,10 +89,10 @@ resource "azurerm_batch_pool" "pool" {
       $samples = $PendingTasks.GetSamplePercent(interval);
       $tasks = $samples < 70 ? max(0, $PendingTasks.GetSample(1)) : max($PendingTasks.GetSample(1), avg($PendingTasks.GetSample(interval)));
       $targetVMs = $tasks > 0 ? $tasks : max(0, $TargetDedicatedNodes/2);
-      targetPoolSize = max(0, min($targetVMs, ${var.max_pool_size}));
+      targetPoolSize = max(${var.min_pool_size}, min($targetVMs, ${var.max_pool_size}));
 
-      // For first interval deploy 1 node, for other intervals scale up/down as per tasks.
-      $TargetDedicatedNodes = lifespan < interval ? 1 : targetPoolSize;
+      // For first interval deploy min_pool_size node, for other intervals scale up/down as per tasks.
+      $TargetDedicatedNodes = lifespan < interval ? ${var.min_pool_size} : targetPoolSize;
       $NodeDeallocationOption = taskcompletion;
     EOF
   }
@@ -98,4 +116,45 @@ resource "azurerm_batch_pool" "pool" {
       file_path = "azcopy"
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      start_task["task_retry_maximum"]
+    ]
+  }
+}
+
+# Replace null_resource with restapi_object
+resource "restapi_object" "tower_compute_env" {
+  count         = var.create_tower_compute_env ? 1 : 0
+  path          = "/compute-envs?workspaceId=${var.tower_workspace_id}"
+  create_method = "POST"
+  id_attribute  = "computeEnvId"
+  data = jsonencode({
+    computeEnv = {
+      credentialsId = var.tower_credentials_id
+      name          = local.compute_env_name
+      platform      = "azure-batch"
+      config = {
+        workDir                 = var.tower_work_dir
+        region                  = data.azurerm_resource_group.rg.location
+        headPool                = var.batch_pool_name
+        managedIdentityClientId = data.azurerm_user_assigned_identity.mi.client_id
+      }
+    }
+  })
+
+  depends_on = [azurerm_batch_pool.pool]
+
+}
+
+# Add data source to get resource group location
+data "azurerm_resource_group" "rg" {
+  name = var.resource_group_name
+}
+
+# Get managed identity details
+data "azurerm_user_assigned_identity" "mi" {
+  name                = var.managed_identity_name
+  resource_group_name = var.managed_identity_resource_group
 }
