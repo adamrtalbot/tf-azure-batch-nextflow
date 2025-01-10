@@ -126,10 +126,13 @@ resource "azurerm_batch_pool" "pool" {
 
 # Replace null_resource with restapi_object
 resource "restapi_object" "tower_compute_env" {
-  count         = var.create_tower_compute_env ? 1 : 0
-  path          = "/compute-envs?workspaceId=${var.tower_workspace_id}"
-  create_method = "POST"
-  id_attribute  = "computeEnvId"
+  count          = var.create_tower_compute_env ? 1 : 0
+  path           = "/compute-envs"
+  query_string   = "workspaceId=${var.tower_workspace_id}"
+  create_method  = "POST"
+  id_attribute   = "computeEnvId"
+  destroy_method = "DELETE"
+
   data = jsonencode({
     computeEnv = {
       credentialsId = var.tower_credentials_id
@@ -145,7 +148,6 @@ resource "restapi_object" "tower_compute_env" {
   })
 
   depends_on = [azurerm_batch_pool.pool]
-
 }
 
 # Add data source to get resource group location
