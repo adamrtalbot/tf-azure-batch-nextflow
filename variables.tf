@@ -1,5 +1,5 @@
 variable "resource_group_name" {
-  description = "Name of the resource group"
+  description = "Name of the resource group of the Azure Batch account"
   type        = string
   default     = "seqeracompute"
 }
@@ -69,8 +69,68 @@ variable "subnet_id" {
   default     = null
 }
 
-variable "identity_ids" {
-  description = "List of user assigned identity IDs to add to the Batch pool. If empty, no managed identities will be assigned"
-  type        = list(string)
-  default     = []
+variable "managed_identity_name" {
+  description = "Name of the managed identity to use with Azure Batch"
+  type        = string
+  default     = "nextflow-id"
+}
+
+variable "managed_identity_resource_group" {
+  description = "Resource group containing the managed identity"
+  type        = string
+  default     = null
+}
+
+variable "min_pool_size" {
+  description = "Minimum number of VMs in the pool"
+  type        = number
+  default     = 0
+}
+
+variable "create_seqera_compute_env" {
+  description = "Whether to create a seqera compute environment"
+  type        = bool
+  default     = false
+}
+
+variable "seqera_api_endpoint" {
+  description = "Seqera API endpoint URL"
+  type        = string
+  default     = "https://api.cloud.seqera.io"
+}
+
+variable "seqera_access_token" {
+  description = "Seqera API access token"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "seqera_workspace_id" {
+  description = "Seqera workspace ID where the compute environment will be created"
+  type        = number
+  default     = null
+}
+
+variable "seqera_compute_env_name" {
+  description = "Name of the Seqera compute environment. Defaults to batch_pool_name if not specified"
+  type        = string
+  default     = null
+}
+
+variable "seqera_work_dir" {
+  description = "Work directory for the Seqera compute environment. Must start with 'az://'"
+  type        = string
+  default     = null
+
+  validation {
+    condition     = can(regex("^az://", var.seqera_work_dir))
+    error_message = "The seqera_work_dir must start with 'az://'."
+  }
+}
+
+variable "seqera_credentials_id" {
+  description = "Seqera Azure credentials ID"
+  type        = string
+  default     = null
 }
