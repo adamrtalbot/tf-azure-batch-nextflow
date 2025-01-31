@@ -49,6 +49,18 @@ locals {
   credentials_id = [jsondecode(data.restapi_object.credentials.api_response).credentials][0].id
 }
 
+resource "terraform_data" "credentials_id" {
+  input = local.credentials_id
+}
+
+resource "terraform_data" "compute_env_name" {
+  input = local.compute_env_name
+}
+
+resource "terraform_data" "managed_identity_id" {
+  input = data.azurerm_user_assigned_identity.mi.id
+}
+
 # Batch pool
 resource "azurerm_batch_pool" "pool" {
   name                = var.batch_pool_name
@@ -159,6 +171,14 @@ resource "restapi_object" "seqera_compute_env" {
   })
 
   depends_on = [azurerm_batch_pool.pool]
+
+  lifecycle {
+    replace_triggered_by = [
+      terraform_data.credentials_id.output,
+      terraform_data.compute_env_name.output,
+      terraform_data.managed_identity_id.output
+    ]
+  }
 }
 
 # Add data source to get resource group location
