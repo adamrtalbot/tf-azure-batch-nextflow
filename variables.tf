@@ -130,7 +130,7 @@ variable "seqera_work_dir" {
 }
 
 variable "seqera_credentials_name" {
-  description = "Name of the Azure credentials in the workspace"
+  description = "Name of the credentials in the workspace"
   type        = string
   default     = null
 }
