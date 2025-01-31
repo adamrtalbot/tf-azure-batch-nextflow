@@ -53,7 +53,7 @@ If you want to add the compute pool to Seqera Platform, you can set the followin
 
 ```terraform
 create_seqera_compute_env = true
-seqera_api_endpoint = "https://cloud.stage-seqera.io/api"
+seqera_api_endpoint = "https://cloud.your-seqera.io/api"
 seqera_access_token = "your-access-token"
 seqera_workspace_id       = "numeric workspace ID"
 seqera_work_dir           = "az://azure-blob-container-name"
