@@ -28,6 +28,7 @@ batch_account_name = "mybatchaccount"
 # Required Batch Pool details
 batch_pool_name = "mypool"
 vm_size = "Standard_E2d_v5"
+min_pool_size = 1
 max_pool_size = 2
 
 # Required VM image configuration
@@ -44,7 +45,19 @@ azcopy_url = "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"
 subnet_id = "/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Network/virtualNetworks/<vnet_name>/subnets/<subnet_name>"
 
 # Optional managed identity configuration
-identity_ids = ["/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<identity_name>"]
+managed_identity_name           = "managed-identity-name"
+managed_identity_resource_group = "managed-identity-resource-group"
+```
+
+If you want to add the compute pool to Seqera Platform, you can set the following variables:
+
+```terraform
+create_seqera_compute_env = true
+seqera_api_endpoint = "https://cloud.your-seqera.io/api"
+seqera_access_token = "your-access-token"
+seqera_workspace_id       = "numeric workspace ID"
+seqera_work_dir           = "az://azure-blob-container-name"
+seqera_credentials_id     = "ID of the credentials in the same Seqera Platform workspace"
 ```
 
 Run `terraform init` and `terraform apply` to create the Batch pool. You should see the pool created in the Azure portal.
@@ -90,12 +103,12 @@ No modules.
 | <a name="input_min_pool_size"></a> [min\_pool\_size](#input\_min\_pool\_size) | Minimum number of VMs in the pool | `number` | `0` | no |
 | <a name="input_node_agent_sku_id"></a> [node\_agent\_sku\_id](#input\_node\_agent\_sku\_id) | SKU of the node agent. Must be compatible with the VM image | `string` | `"batch.node.ubuntu 20.04"` | no |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the resource group of the Azure Batch account | `string` | `"seqeracompute"` | no |
-| <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token | `string` | `null` | no |
-| <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL | `string` | `"https://api.cloud.seqera.io"` | no |
+| <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token which must be generated from the Seqera Platform UI. | `string` | `null` | no |
+| <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
 | <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environment. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
-| <a name="input_seqera_credentials_id"></a> [seqera\_credentials\_id](#input\_seqera\_credentials\_id) | Seqera Azure credentials ID | `string` | `null` | no |
-| <a name="input_seqera_work_dir"></a> [seqera\_work\_dir](#input\_seqera\_work\_dir) | Work directory for the Seqera compute environment. Must start with 'az://' | `string` | `null` | no |
-| <a name="input_seqera_workspace_id"></a> [seqera\_workspace\_id](#input\_seqera\_workspace\_id) | Seqera workspace ID where the compute environment will be created | `number` | `null` | no |
+| <a name="input_seqera_credentials_id"></a> [seqera\_credentials\_id](#input\_seqera\_credentials\_id) | ID of the Azure credentials in the workspace which can be found in the URL of the credentials details page. | `string` | `null` | no |
+| <a name="input_seqera_work_dir"></a> [seqera\_work\_dir](#input\_seqera\_work\_dir) | Work directory for the Seqera compute environment which is typically an Azure Blob Storage container. Must start with 'az://' | `string` | `null` | no |
+| <a name="input_seqera_workspace_id"></a> [seqera\_workspace\_id](#input\_seqera\_workspace\_id) | Seqera workspace ID where the compute environment will be created. Can by looking at the list of workspaces within an organization on the Seqera Platform. | `number` | `null` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |
 | <a name="input_vm_image_offer"></a> [vm\_image\_offer](#input\_vm\_image\_offer) | Offer of the VM image | `string` | `"ubuntu-server-container"` | no |
 | <a name="input_vm_image_publisher"></a> [vm\_image\_publisher](#input\_vm\_image\_publisher) | Publisher of the VM image | `string` | `"microsoft-azure-batch"` | no |
