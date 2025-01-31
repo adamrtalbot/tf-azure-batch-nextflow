@@ -113,7 +113,7 @@ variable "seqera_workspace_id" {
 }
 
 variable "seqera_compute_env_name" {
-  description = "Name of the Seqera compute environment. Defaults to batch_pool_name if not specified"
+  description = "Name of the Seqera compute environmentz. Defaults to batch_pool_name if not specified"
   type        = string
   default     = null
 }
@@ -129,8 +129,8 @@ variable "seqera_work_dir" {
   }
 }
 
-variable "seqera_credentials_id" {
-  description = "ID of the Azure credentials in the workspace which can be found in the URL of the credentials details page."
+variable "seqera_credentials_name" {
+  description = "Name of the Azure credentials in the workspace"
   type        = string
   default     = null
 }
