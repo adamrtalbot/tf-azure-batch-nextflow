@@ -94,20 +94,20 @@ variable "create_seqera_compute_env" {
 }
 
 variable "seqera_api_endpoint" {
-  description = "Seqera API endpoint URL"
+  description = "Seqera API endpoint URL."
   type        = string
   default     = "https://api.cloud.seqera.io"
 }
 
 variable "seqera_access_token" {
-  description = "Seqera API access token"
+  description = "Seqera API access token which must be generated from the Seqera Platform UI."
   type        = string
   default     = null
   sensitive   = true
 }
 
 variable "seqera_workspace_id" {
-  description = "Seqera workspace ID where the compute environment will be created"
+  description = "Seqera workspace ID where the compute environment will be created. Can by looking at the list of workspaces within an organization on the Seqera Platform."
   type        = number
   default     = null
 }
@@ -119,7 +119,7 @@ variable "seqera_compute_env_name" {
 }
 
 variable "seqera_work_dir" {
-  description = "Work directory for the Seqera compute environment. Must start with 'az://'"
+  description = "Work directory for the Seqera compute environment which is typically an Azure Blob Storage container. Must start with 'az://'"
   type        = string
   default     = null
 
@@ -130,7 +130,7 @@ variable "seqera_work_dir" {
 }
 
 variable "seqera_credentials_id" {
-  description = "Seqera Azure credentials ID"
+  description = "ID of the Azure credentials in the workspace which can be found in the URL of the credentials details page."
   type        = string
   default     = null
 }
