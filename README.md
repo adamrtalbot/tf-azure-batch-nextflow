@@ -54,10 +54,10 @@ If you want to add the compute pool to Seqera Platform, you can set the followin
 ```terraform
 create_seqera_compute_env = true
 seqera_api_endpoint = "https://cloud.your-seqera.io/api"
-seqera_access_token = "your-access-token"
-seqera_workspace_id       = "numeric workspace ID"
+seqera_access_token = "eyJYOURACCESSTOKENHERE="
+seqera_workspace_id       = "1234567890"
 seqera_work_dir           = "az://azure-blob-container-name"
-seqera_credentials_id     = "ID of the credentials in the same Seqera Platform workspace"
+seqera_credentials_name   = "azure-creds"
 ```
 
 Run `terraform init` and `terraform apply` to create the Batch pool. You should see the pool created in the Azure portal.
@@ -109,7 +109,7 @@ No modules.
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the resource group of the Azure Batch account | `string` | `"seqeracompute"` | no |
 | <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token which must be generated from the Seqera Platform UI. | `string` | `null` | no |
 | <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
-| <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environmentz. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
+| <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environment. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
 | <a name="input_seqera_credentials_name"></a> [seqera\_credentials\_name](#input\_seqera\_credentials\_name) | Name of the credentials in the workspace | `string` | `null` | no |
 | <a name="input_seqera_work_dir"></a> [seqera\_work\_dir](#input\_seqera\_work\_dir) | Work directory for the Seqera compute environment which is typically an Azure Blob Storage container. Must start with 'az://' | `string` | `null` | no |
 | <a name="input_seqera_workspace_id"></a> [seqera\_workspace\_id](#input\_seqera\_workspace\_id) | Seqera workspace ID where the compute environment will be created. Can by looking at the list of workspaces within an organization on the Seqera Platform. | `number` | `null` | no |
