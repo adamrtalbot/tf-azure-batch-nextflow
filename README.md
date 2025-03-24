@@ -58,7 +58,25 @@ seqera_access_token = "eyJYOURACCESSTOKENHERE="
 seqera_workspace_id       = "1234567890"
 seqera_work_dir           = "az://azure-blob-container-name"
 seqera_credentials_name   = "azure-creds"
+seqera_pre_run_script     = <<-EOT
+#!/bin/bash
+echo 'Hello, world!'
+EOT
+seqera_post_run_script    = <<-EOT
+#!/bin/bash
+echo 'Goodbye, world!'
+EOT
+seqera_nextflow_config    = <<-EOT
+process.queue = "auto"
+process.machineType = "Standard_D*d_v5,Standard_E*d_v5"
+azure.batch.pools.auto.autoScale = true
+azure.batch.pools.auto.vmCount = 0
+azure.batch.pools.auto.maxVmCount = 12
+azure.batch.pools.auto.lowPriority = true
+EOT
 ```
+
+> **Note:** For multi-line strings like `seqera_pre_run_script`, `seqera_post_run_script`, and `seqera_nextflow_config`, you must use heredoc syntax (`<<-EOT` and `EOT`) as shown in the example above. See Terraform documentation [here](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for more information.
 
 Run `terraform init` and `terraform apply` to create the Batch pool. You should see the pool created in the Azure portal.
 
@@ -92,6 +110,9 @@ No modules.
 | [terraform_data.compute_env_name](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [terraform_data.credentials_id](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [terraform_data.managed_identity_id](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.nextflow_config](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.post_run_script](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.pre_run_script](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 
 ## Inputs
 
@@ -111,6 +132,9 @@ No modules.
 | <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
 | <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environment. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
 | <a name="input_seqera_credentials_name"></a> [seqera\_credentials\_name](#input\_seqera\_credentials\_name) | Name of the credentials in the workspace | `string` | `null` | no |
+| <a name="input_seqera_nextflow_config"></a> [seqera\_nextflow\_config](#input\_seqera\_nextflow\_config) | Optional Nextflow config content to be used in the compute environment. Can be a multi-line string using heredoc syntax. | `string` | `null` | no |
+| <a name="input_seqera_post_run_script"></a> [seqera\_post\_run\_script](#input\_seqera\_post\_run\_script) | Optional script to run after each task execution. Can be a multi-line string using heredoc syntax. | `string` | `null` | no |
+| <a name="input_seqera_pre_run_script"></a> [seqera\_pre\_run\_script](#input\_seqera\_pre\_run\_script) | Optional script to run before each task execution. Can be a multi-line string using heredoc syntax. | `string` | `null` | no |
 | <a name="input_seqera_work_dir"></a> [seqera\_work\_dir](#input\_seqera\_work\_dir) | Work directory for the Seqera compute environment which is typically an Azure Blob Storage container. Must start with 'az://' | `string` | `null` | no |
 | <a name="input_seqera_workspace_id"></a> [seqera\_workspace\_id](#input\_seqera\_workspace\_id) | Seqera workspace ID where the compute environment will be created. Can by looking at the list of workspaces within an organization on the Seqera Platform. | `number` | `null` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |

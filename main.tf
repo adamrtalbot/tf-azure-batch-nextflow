@@ -62,6 +62,18 @@ resource "terraform_data" "managed_identity_id" {
   input = data.azurerm_user_assigned_identity.mi.id
 }
 
+resource "terraform_data" "pre_run_script" {
+  input = var.seqera_pre_run_script
+}
+
+resource "terraform_data" "post_run_script" {
+  input = var.seqera_post_run_script
+}
+
+resource "terraform_data" "nextflow_config" {
+  input = var.seqera_nextflow_config
+}
+
 # Batch pool
 resource "azurerm_batch_pool" "pool" {
   name                = var.batch_pool_name
@@ -167,17 +179,28 @@ resource "restapi_object" "seqera_compute_env" {
         region                  = data.azurerm_resource_group.rg.location
         headPool                = var.batch_pool_name
         managedIdentityClientId = data.azurerm_user_assigned_identity.mi.client_id
+        preRunScript            = terraform_data.pre_run_script.output
+        postRunScript           = terraform_data.post_run_script.output
+        nextflowConfig          = terraform_data.nextflow_config.output
       }
     }
   })
 
-  depends_on = [azurerm_batch_pool.pool]
+  depends_on = [
+    azurerm_batch_pool.pool,
+    terraform_data.pre_run_script,
+    terraform_data.post_run_script,
+    terraform_data.nextflow_config
+  ]
 
   lifecycle {
     replace_triggered_by = [
       terraform_data.credentials_id.output,
       terraform_data.compute_env_name.output,
-      terraform_data.managed_identity_id.output
+      terraform_data.managed_identity_id.output,
+      terraform_data.pre_run_script.output,
+      terraform_data.post_run_script.output,
+      terraform_data.nextflow_config.output
     ]
   }
 }
