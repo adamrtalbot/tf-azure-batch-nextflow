@@ -30,12 +30,35 @@ provider "restapi" {
   create_returns_object = true
 }
 
+# Get credentials by name
+data "restapi_object" "credentials" {
+  path         = "/credentials"
+  search_key   = "name"
+  search_value = var.seqera_credentials_name
+  query_string = "workspaceId=${var.seqera_workspace_id}"
+  results_key  = "credentials"
+}
+
 locals {
   # Extract number from VM size using regex
   # Matches numbers after any letter series (like D, DS, NP, L, etc.)
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
+  # Find the matching credential from the array and get its ID
+  credentials_id = [jsondecode(data.restapi_object.credentials.api_response).credentials][0].id
+}
+
+resource "terraform_data" "credentials_id" {
+  input = local.credentials_id
+}
+
+resource "terraform_data" "compute_env_name" {
+  input = local.compute_env_name
+}
+
+resource "terraform_data" "managed_identity_id" {
+  input = data.azurerm_user_assigned_identity.mi.id
 }
 
 # Batch pool
@@ -135,7 +158,7 @@ resource "restapi_object" "seqera_compute_env" {
 
   data = jsonencode({
     computeEnv = {
-      credentialsId = var.seqera_credentials_id
+      credentialsId = local.credentials_id
       name          = local.compute_env_name
       platform      = "azure-batch"
       config = {
@@ -148,6 +171,14 @@ resource "restapi_object" "seqera_compute_env" {
   })
 
   depends_on = [azurerm_batch_pool.pool]
+
+  lifecycle {
+    replace_triggered_by = [
+      terraform_data.credentials_id.output,
+      terraform_data.compute_env_name.output,
+      terraform_data.managed_identity_id.output
+    ]
+  }
 }
 
 # Add data source to get resource group location

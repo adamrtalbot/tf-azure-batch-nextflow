@@ -129,8 +129,8 @@ variable "seqera_work_dir" {
   }
 }
 
-variable "seqera_credentials_id" {
-  description = "ID of the Azure credentials in the workspace which can be found in the URL of the credentials details page."
+variable "seqera_credentials_name" {
+  description = "Name of the credentials in the workspace"
   type        = string
   default     = null
 }

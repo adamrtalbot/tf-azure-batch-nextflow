@@ -13,7 +13,15 @@ output "managed_identity_client_id" {
   value       = data.azurerm_user_assigned_identity.mi.client_id
 }
 
+output "credentials_id" {
+  description = "The ID of the credentials"
+  value       = terraform_data.credentials_id.output
+}
+
 output "seqera_compute_env_id" {
   description = "The ID of the Tower compute environment"
   value       = var.create_seqera_compute_env ? restapi_object.seqera_compute_env[0].id : null
 }
+
+
+
