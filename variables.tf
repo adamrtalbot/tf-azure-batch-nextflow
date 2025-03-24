@@ -140,3 +140,24 @@ variable "seqera_credentials_name" {
   type        = string
   default     = null
 }
+
+variable "seqera_pre_run_script" {
+  description = "Optional script to run before each task execution. Can be a multi-line string using heredoc syntax."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "seqera_post_run_script" {
+  description = "Optional script to run after each task execution. Can be a multi-line string using heredoc syntax."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "seqera_nextflow_config" {
+  description = "Optional Nextflow config content to be used in the compute environment. Can be a multi-line string using heredoc syntax."
+  type        = string
+  default     = null
+  nullable    = true
+}
