@@ -113,7 +113,7 @@ variable "seqera_workspace_id" {
 }
 
 variable "seqera_compute_env_name" {
-  description = "Name of the Seqera compute environmentz. Defaults to batch_pool_name if not specified"
+  description = "Name of the Seqera compute environment. Defaults to batch_pool_name if not specified"
   type        = string
   default     = null
 }
