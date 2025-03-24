@@ -77,6 +77,7 @@ Run `terraform init` and `terraform apply` to create the Batch pool. You should 
 |------|---------|
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 3.117.0 |
 | <a name="provider_restapi"></a> [restapi](#provider\_restapi) | 1.20.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -88,6 +89,9 @@ No modules.
 |------|------|
 | [azurerm_batch_pool.pool](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/batch_pool) | resource |
 | [restapi_object.seqera_compute_env](https://registry.terraform.io/providers/Mastercard/restapi/latest/docs/resources/object) | resource |
+| [terraform_data.compute_env_name](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.credentials_id](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.managed_identity_id](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 
 ## Inputs
 
@@ -105,8 +109,8 @@ No modules.
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the resource group of the Azure Batch account | `string` | `"seqeracompute"` | no |
 | <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token which must be generated from the Seqera Platform UI. | `string` | `null` | no |
 | <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
-| <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environment. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
-| <a name="input_seqera_credentials_id"></a> [seqera\_credentials\_id](#input\_seqera\_credentials\_id) | ID of the Azure credentials in the workspace which can be found in the URL of the credentials details page. | `string` | `null` | no |
+| <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environmentz. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
+| <a name="input_seqera_credentials_name"></a> [seqera\_credentials\_name](#input\_seqera\_credentials\_name) | Name of the credentials in the workspace | `string` | `null` | no |
 | <a name="input_seqera_work_dir"></a> [seqera\_work\_dir](#input\_seqera\_work\_dir) | Work directory for the Seqera compute environment which is typically an Azure Blob Storage container. Must start with 'az://' | `string` | `null` | no |
 | <a name="input_seqera_workspace_id"></a> [seqera\_workspace\_id](#input\_seqera\_workspace\_id) | Seqera workspace ID where the compute environment will be created. Can by looking at the list of workspaces within an organization on the Seqera Platform. | `number` | `null` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |
@@ -122,6 +126,7 @@ No modules.
 |------|-------------|
 | <a name="output_batch_pool_id"></a> [batch\_pool\_id](#output\_batch\_pool\_id) | The ID of the Azure Batch pool |
 | <a name="output_batch_pool_name"></a> [batch\_pool\_name](#output\_batch\_pool\_name) | The name of the Azure Batch pool |
+| <a name="output_credentials_id"></a> [credentials\_id](#output\_credentials\_id) | The ID of the credentials |
 | <a name="output_managed_identity_client_id"></a> [managed\_identity\_client\_id](#output\_managed\_identity\_client\_id) | The client ID of the managed identity |
 | <a name="output_seqera_compute_env_id"></a> [seqera\_compute\_env\_id](#output\_seqera\_compute\_env\_id) | The ID of the Tower compute environment |
 <!-- END_TF_DOCS -->
