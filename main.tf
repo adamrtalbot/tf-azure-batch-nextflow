@@ -47,7 +47,7 @@ locals {
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
   # Only try to access credentials when create_seqera_compute_env is true
-  credentials_id = var.create_seqera_compute_env ? [jsondecode(data.restapi_object.credentials[0].api_response).credentials][0].id : null
+  credentials_id = var.create_seqera_compute_env ? jsondecode(data.restapi_object.credentials[0].api_response).credentials.id : null
 }
 
 resource "terraform_data" "credentials_id" {
