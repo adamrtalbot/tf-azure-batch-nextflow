@@ -22,7 +22,7 @@ provider "restapi" {
   insecure = true
   uri      = trimsuffix(var.seqera_api_endpoint, "/")
   headers = {
-    "Authorization" = "Bearer ${var.seqera_access_token}"
+    "Authorization" = var.seqera_access_token == null ? "" : "Bearer ${var.seqera_access_token}"
     "Content-Type"  = "application/json"
     "Accept"        = "application/json"
   }
@@ -32,6 +32,7 @@ provider "restapi" {
 
 # Get credentials by name
 data "restapi_object" "credentials" {
+  count        = var.create_seqera_compute_env ? 1 : 0
   path         = "/credentials"
   search_key   = "name"
   search_value = var.seqera_credentials_name
@@ -45,8 +46,8 @@ locals {
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
-  # Find the matching credential from the array and get its ID
-  credentials_id = [jsondecode(data.restapi_object.credentials.api_response).credentials][0].id
+  # Only try to access credentials when create_seqera_compute_env is true
+  credentials_id = var.create_seqera_compute_env ? [jsondecode(data.restapi_object.credentials[0].api_response).credentials][0].id : null
 }
 
 resource "terraform_data" "credentials_id" {

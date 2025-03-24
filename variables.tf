@@ -103,7 +103,13 @@ variable "seqera_access_token" {
   description = "Seqera API access token which must be generated from the Seqera Platform UI."
   type        = string
   default     = null
+  nullable    = true
   sensitive   = true
+
+  validation {
+    condition     = var.seqera_access_token == null || can(regex("^[A-Za-z0-9_=-]{10,}$", var.seqera_access_token))
+    error_message = "The seqera_access_token must be null or a valid token format starting with 'eyJ' and containing a period."
+  }
 }
 
 variable "seqera_workspace_id" {
@@ -124,7 +130,7 @@ variable "seqera_work_dir" {
   default     = null
 
   validation {
-    condition     = can(regex("^az://", var.seqera_work_dir))
+    condition     = var.seqera_work_dir == null || can(regex("^az://", var.seqera_work_dir))
     error_message = "The seqera_work_dir must start with 'az://'."
   }
 }
