@@ -53,8 +53,8 @@ If you want to add the compute pool to Seqera Platform, you can set the followin
 
 ```terraform
 create_seqera_compute_env = true
-seqera_api_endpoint = "https://cloud.your-seqera.io/api"
-seqera_access_token = "eyJYOURACCESSTOKENHERE="
+seqera_api_endpoint       = "https://cloud.your-seqera.io/api"
+seqera_access_token       = "eyJYOURACCESSTOKENHERE="
 seqera_workspace_id       = "1234567890"
 seqera_work_dir           = "az://azure-blob-container-name"
 seqera_credentials_name   = "azure-creds"
@@ -66,7 +66,7 @@ seqera_post_run_script    = <<-EOT
 #!/bin/bash
 echo 'Goodbye, world!'
 EOT
-seqera_nextflow_config    = <<-EOT
+seqera_nextflow_config      = <<-EOT
 process.queue = "auto"
 process.machineType = "Standard_D*d_v5,Standard_E*d_v5"
 azure.batch.pools.auto.autoScale = true
@@ -76,9 +76,10 @@ azure.batch.pools.auto.lowPriority = true
 EOT
 ```
 
-> **Note:** For multi-line strings like `seqera_pre_run_script`, `seqera_post_run_script`, and `seqera_nextflow_config`, you must use heredoc syntax (`<<-EOT` and `EOT`) as shown in the example above. See Terraform documentation [here](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for more information.
-
 Run `terraform init` and `terraform apply` to create the Batch pool. You should see the pool created in the Azure portal.
+
+> [!NOTE]
+> For multi-line strings like `seqera_pre_run_script`, `seqera_post_run_script`, and `seqera_nextflow_config`, you must use heredoc syntax (`<<-EOT` and `EOT`) as shown in the example above. See Terraform documentation [here](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for more information.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
