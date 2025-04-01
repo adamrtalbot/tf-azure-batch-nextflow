@@ -110,6 +110,14 @@ resource "azurerm_batch_pool" "pool" {
   # Container configuration for Docker support
   container_configuration {
     type = "DockerCompatible"
+    dynamic "container_registries" {
+      for_each = var.container_registries
+      content {
+        registry_server = container_registries.value.registry_server
+        user_name       = container_registries.value.user_name
+        password        = container_registries.value.password
+      }
+    }
   }
 
   # Auto-scale configuration

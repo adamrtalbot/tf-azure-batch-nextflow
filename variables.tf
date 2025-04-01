@@ -87,6 +87,16 @@ variable "min_pool_size" {
   default     = 0
 }
 
+variable "container_registries" {
+  description = "List of container registries to be used in the Batch pool's container configuration."
+  type = list(object({
+    registry_server = string
+    user_name       = string
+    password        = string
+  }))
+  default = []
+}
+
 variable "create_seqera_compute_env" {
   description = "Whether to create a seqera compute environment"
   type        = bool
@@ -161,3 +171,4 @@ variable "seqera_nextflow_config" {
   default     = null
   nullable    = true
 }
+
