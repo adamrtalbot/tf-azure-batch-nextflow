@@ -88,13 +88,23 @@ variable "min_pool_size" {
 }
 
 variable "container_registries" {
-  description = "List of container registries to be used in the Batch pool's container configuration."
+  description = "List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR identity_id, not both."
   type = list(object({
     registry_server = string
-    user_name       = string
-    password        = string
+    user_name       = optional(string)
+    password        = optional(string)
+    identity_id     = optional(string)
   }))
   default = []
+
+  validation {
+    condition = alltrue([
+      for registry in var.container_registries :
+      (registry.user_name != null && registry.password != null && registry.identity_id == null) ||
+      (registry.user_name == null && registry.password == null && registry.identity_id != null)
+    ])
+    error_message = "Each registry must have either username AND password OR identity_id, not both or neither."
+  }
 }
 
 variable "create_seqera_compute_env" {
