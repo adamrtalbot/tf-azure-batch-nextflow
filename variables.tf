@@ -88,22 +88,31 @@ variable "min_pool_size" {
 }
 
 variable "container_registries" {
-  description = "List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR identity_id, not both."
+  description = "List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use_managed_identity to true. When use_managed_identity is true, the pool's managed identity will be used."
   type = list(object({
-    registry_server = string
-    user_name       = optional(string)
-    password        = optional(string)
-    identity_id     = optional(string)
+    registry_server      = string
+    user_name            = optional(string)
+    password             = optional(string)
+    identity_id          = optional(string)
+    use_managed_identity = optional(bool, false)
   }))
   default = []
 
+  # Validate that each registry uses either: 1) username AND password, 2) identity_id, or 3) pool's managed identity (use_managed_identity = true)
   validation {
     condition = alltrue([
       for registry in var.container_registries :
-      (registry.user_name != null && registry.password != null && registry.identity_id == null) ||
-      (registry.user_name == null && registry.password == null && registry.identity_id != null)
+      (registry.user_name != null && registry.password != null && registry.identity_id == null && registry.use_managed_identity == false) ||
+      (registry.user_name == null && registry.password == null && registry.identity_id != null && registry.use_managed_identity == false) ||
+      (registry.user_name == null && registry.password == null && registry.identity_id == null && registry.use_managed_identity == true)
     ])
-    error_message = "Each registry must have either username AND password OR identity_id, not both or neither."
+    error_message = "Each registry must use either: 1) username AND password, 2) identity_id, or 3) pool's managed identity (use_managed_identity = true). These options are mutually exclusive."
+  }
+
+  # Validate that each registry_server is unique
+  validation {
+    condition     = length(var.container_registries) == length(distinct([for registry in var.container_registries : registry.registry_server]))
+    error_message = "Each registry_server in container_registries must be unique. Azure Batch does not allow duplicate registry servers."
   }
 }
 

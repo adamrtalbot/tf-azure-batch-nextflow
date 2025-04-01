@@ -49,6 +49,10 @@ managed_identity_name           = "managed-identity-name"
 managed_identity_resource_group = "managed-identity-resource-group"
 
 # Optional container registries configuration
+# Can use:
+# 1) username AND password
+# 2) identity_id
+# 3) use_managed_identity = true (pool's managed identity will be used)
 container_registries = [
   {
     registry_server = "my-registry-server.azurecr.io"
@@ -58,6 +62,10 @@ container_registries = [
   {
     registry_server = "my-registry-server.azurecr.io"
     identity_id     = "/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-managed-identity"
+  },
+  {
+    registry_server     = "my-registry-server.azurecr.io"
+    use_managed_identity = true
   }
 ]
 ```
@@ -135,7 +143,7 @@ No modules.
 | <a name="input_azcopy_url"></a> [azcopy\_url](#input\_azcopy\_url) | URL to download azcopy binary | `string` | `"https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"` | no |
 | <a name="input_batch_account_name"></a> [batch\_account\_name](#input\_batch\_account\_name) | Name of the existing Batch account | `string` | `"seqeracomputebatch"` | no |
 | <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | `"seqerapool"` | no |
-| <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR identity\_id, not both. | <pre>list(object({<br>    registry_server = string<br>    user_name       = optional(string)<br>    password        = optional(string)<br>    identity_id     = optional(string)<br>  }))</pre> | `[]` | no |
+| <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use\_managed\_identity to true. When use\_managed\_identity is true, the pool's managed identity will be used. | <pre>list(object({<br>    registry_server      = string<br>    user_name            = optional(string)<br>    password             = optional(string)<br>    identity_id          = optional(string)<br>    use_managed_identity = optional(bool, false)<br>  }))</pre> | `[]` | no |
 | <a name="input_create_seqera_compute_env"></a> [create\_seqera\_compute\_env](#input\_create\_seqera\_compute\_env) | Whether to create a seqera compute environment | `bool` | `false` | no |
 | <a name="input_managed_identity_name"></a> [managed\_identity\_name](#input\_managed\_identity\_name) | Name of the managed identity to use with Azure Batch | `string` | `"nextflow-id"` | no |
 | <a name="input_managed_identity_resource_group"></a> [managed\_identity\_resource\_group](#input\_managed\_identity\_resource\_group) | Resource group containing the managed identity | `string` | `null` | no |
