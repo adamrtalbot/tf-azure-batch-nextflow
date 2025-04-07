@@ -87,6 +87,35 @@ variable "min_pool_size" {
   default     = 0
 }
 
+variable "container_registries" {
+  description = "List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use_managed_identity to true. When use_managed_identity is true, the pool's managed identity will be used."
+  type = list(object({
+    registry_server      = string
+    user_name            = optional(string)
+    password             = optional(string)
+    identity_id          = optional(string)
+    use_managed_identity = optional(bool, false)
+  }))
+  default = []
+
+  # Validate that each registry uses either: 1) username AND password, 2) identity_id, or 3) pool's managed identity (use_managed_identity = true)
+  validation {
+    condition = alltrue([
+      for registry in var.container_registries :
+      (registry.user_name != null && registry.password != null && registry.identity_id == null && registry.use_managed_identity == false) ||
+      (registry.user_name == null && registry.password == null && registry.identity_id != null && registry.use_managed_identity == false) ||
+      (registry.user_name == null && registry.password == null && registry.identity_id == null && registry.use_managed_identity == true)
+    ])
+    error_message = "Each registry must use either: 1) username AND password, 2) identity_id, or 3) pool's managed identity (use_managed_identity = true). These options are mutually exclusive."
+  }
+
+  # Validate that each registry_server is unique
+  validation {
+    condition     = length(var.container_registries) == length(distinct([for registry in var.container_registries : registry.registry_server]))
+    error_message = "Each registry_server in container_registries must be unique. Azure Batch does not allow duplicate registry servers."
+  }
+}
+
 variable "create_seqera_compute_env" {
   description = "Whether to create a seqera compute environment"
   type        = bool
@@ -161,3 +190,4 @@ variable "seqera_nextflow_config" {
   default     = null
   nullable    = true
 }
+
