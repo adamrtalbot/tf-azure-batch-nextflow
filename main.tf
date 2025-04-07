@@ -144,28 +144,25 @@ resource "azurerm_batch_pool" "pool" {
 
   # Start task to install azcopy
   start_task {
-    command_line     = "bash -c \"chmod +x azcopy && mkdir $AZ_BATCH_NODE_SHARED_DIR/bin/ && cp azcopy $AZ_BATCH_NODE_SHARED_DIR/bin/\""
+    command_line     = var.start_task_command_line
     wait_for_success = true
 
     task_retry_maximum = 0
 
     user_identity {
       auto_user {
-        elevation_level = "NonAdmin"
-        scope           = "Pool"
+        elevation_level = var.start_task_elevation_level
+        scope           = var.start_task_scope
       }
     }
 
-    resource_file {
-      http_url  = var.azcopy_url
-      file_path = "azcopy"
+    dynamic "resource_file" {
+      for_each = var.start_task_resource_files
+      content {
+        http_url  = resource_file.value.url
+        file_path = resource_file.value.file_path
+      }
     }
-  }
-
-  lifecycle {
-    ignore_changes = [
-      start_task["task_retry_maximum"]
-    ]
   }
 }
 

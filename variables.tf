@@ -1,18 +1,15 @@
 variable "resource_group_name" {
   description = "Name of the resource group of the Azure Batch account"
   type        = string
-  default     = "seqeracompute"
 }
 variable "batch_account_name" {
   description = "Name of the existing Batch account"
   type        = string
-  default     = "seqeracomputebatch"
 }
 
 variable "batch_pool_name" {
   description = "Name of the Batch pool to be created"
   type        = string
-  default     = "seqerapool"
 }
 
 variable "vm_size" {
@@ -57,10 +54,44 @@ variable "node_agent_sku_id" {
   default     = "batch.node.ubuntu 20.04"
 }
 
-variable "azcopy_url" {
-  description = "URL to download azcopy binary"
+variable "start_task_command_line" {
+  description = "Command line to run on the start task"
   type        = string
-  default     = "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"
+  default     = "bash -c \"tar -xzvf azcopy.tar.gz && chmod +x azcopy*/azcopy && mkdir -p $AZ_BATCH_NODE_SHARED_DIR/bin/ && cp azcopy*/azcopy $AZ_BATCH_NODE_SHARED_DIR/bin/\""
+}
+
+variable "start_task_resource_files" {
+  description = "URL to download azcopy binary"
+  type = list(object({
+    url       = string
+    file_path = string
+  }))
+  default = [
+    {
+      url       = "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"
+      file_path = "azcopy"
+    }
+  ]
+}
+
+variable "start_task_elevation_level" {
+  description = "Elevation level for the start task"
+  type        = string
+  default     = "NonAdmin"
+  validation {
+    condition     = var.start_task_elevation_level == "NonAdmin" || var.start_task_elevation_level == "Admin"
+    error_message = "start_task_elevation_level must be either 'NonAdmin' or 'Admin'"
+  }
+}
+
+variable "start_task_scope" {
+  description = "Scope for the start task"
+  type        = string
+  default     = "Pool"
+  validation {
+    condition     = var.start_task_scope == "Pool" || var.start_task_scope == "Task"
+    error_message = "start_task_scope must be either 'Pool' or 'Task'"
+  }
 }
 
 variable "subnet_id" {
