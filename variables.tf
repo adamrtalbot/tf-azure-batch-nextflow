@@ -42,7 +42,11 @@ variable "vm_image_offer" {
 variable "vm_image_sku" {
   description = "SKU of the VM image"
   type        = string
-  default     = "22.04"
+  default     = "2204"
+  validation {
+    condition     = !can(regex("\\.", var.vm_image_sku))
+    error_message = "String must not contain periods, e.g. 22.04 -> 2204"
+  }
 }
 
 variable "vm_image_version" {

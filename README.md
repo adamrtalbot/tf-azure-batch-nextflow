@@ -34,7 +34,7 @@ max_pool_size = 2
 # Required VM image configuration
 vm_image_publisher = "microsoft-dsvm"
 vm_image_offer = "ubuntu-hpc"
-vm_image_sku = "22.04"
+vm_image_sku = "2204"
 vm_image_version = "latest"
 node_agent_sku_id = "batch.node.ubuntu 22.04"
 
@@ -163,7 +163,7 @@ No modules.
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |
 | <a name="input_vm_image_offer"></a> [vm\_image\_offer](#input\_vm\_image\_offer) | Offer of the VM image | `string` | `"ubuntu-hpc"` | no |
 | <a name="input_vm_image_publisher"></a> [vm\_image\_publisher](#input\_vm\_image\_publisher) | Publisher of the VM image | `string` | `"microsoft-dsvm"` | no |
-| <a name="input_vm_image_sku"></a> [vm\_image\_sku](#input\_vm\_image\_sku) | SKU of the VM image | `string` | `"22.04"` | no |
+| <a name="input_vm_image_sku"></a> [vm\_image\_sku](#input\_vm\_image\_sku) | SKU of the VM image | `string` | `"2204"` | no |
 | <a name="input_vm_image_version"></a> [vm\_image\_version](#input\_vm\_image\_version) | Version of the VM image | `string` | `"latest"` | no |
 | <a name="input_vm_size"></a> [vm\_size](#input\_vm\_size) | Size of the VM to use in the Batch pool | `string` | `"Standard_E16d_v5"` | no |
 
