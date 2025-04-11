@@ -66,11 +66,11 @@ min_pool_size = 1
 max_pool_size = 2
 
 # Required VM image configuration
-vm_image_publisher = "microsoft-azure-batch"
-vm_image_offer = "ubuntu-server-container"
-vm_image_sku = "20-04-lts"
+vm_image_publisher = "microsoft-dsvm"
+vm_image_offer = "ubuntu-hpc"
+vm_image_sku = "2204"
 vm_image_version = "latest"
-node_agent_sku_id = "batch.node.ubuntu 20.04"
+node_agent_sku_id = "batch.node.ubuntu 22.04"
 
 # Start task configuration, use to install the most recent version of azcopy
 start_task_command_line = "bash -c \"tar -xzvf azcopy.tar.gz && chmod +x azcopy*/azcopy && mkdir -p $AZ_BATCH_NODE_SHARED_DIR/bin/ && cp azcopy*/azcopy $AZ_BATCH_NODE_SHARED_DIR/bin/\""
@@ -187,7 +187,7 @@ No modules.
 | <a name="input_managed_identity_resource_group"></a> [managed\_identity\_resource\_group](#input\_managed\_identity\_resource\_group) | Resource group containing the managed identity | `string` | `null` | no |
 | <a name="input_max_pool_size"></a> [max\_pool\_size](#input\_max\_pool\_size) | Maximum number of VMs in the pool | `number` | `8` | no |
 | <a name="input_min_pool_size"></a> [min\_pool\_size](#input\_min\_pool\_size) | Minimum number of VMs in the pool | `number` | `0` | no |
-| <a name="input_node_agent_sku_id"></a> [node\_agent\_sku\_id](#input\_node\_agent\_sku\_id) | SKU of the node agent. Must be compatible with the VM image | `string` | `"batch.node.ubuntu 20.04"` | no |
+| <a name="input_node_agent_sku_id"></a> [node\_agent\_sku\_id](#input\_node\_agent\_sku\_id) | SKU of the node agent. Must be compatible with the VM image | `string` | `"batch.node.ubuntu 22.04"` | no |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the resource group of the Azure Batch account | `string` | n/a | yes |
 | <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token which must be generated from the Seqera Platform UI. | `string` | `null` | no |
 | <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
@@ -203,9 +203,9 @@ No modules.
 | <a name="input_start_task_resource_files"></a> [start\_task\_resource\_files](#input\_start\_task\_resource\_files) | URL to download azcopy binary | <pre>list(object({<br>    url       = string<br>    file_path = string<br>  }))</pre> | <pre>[<br>  {<br>    "file_path": "azcopy",<br>    "url": "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"<br>  }<br>]</pre> | no |
 | <a name="input_start_task_scope"></a> [start\_task\_scope](#input\_start\_task\_scope) | Scope for the start task | `string` | `"Pool"` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |
-| <a name="input_vm_image_offer"></a> [vm\_image\_offer](#input\_vm\_image\_offer) | Offer of the VM image | `string` | `"ubuntu-server-container"` | no |
-| <a name="input_vm_image_publisher"></a> [vm\_image\_publisher](#input\_vm\_image\_publisher) | Publisher of the VM image | `string` | `"microsoft-azure-batch"` | no |
-| <a name="input_vm_image_sku"></a> [vm\_image\_sku](#input\_vm\_image\_sku) | SKU of the VM image | `string` | `"20-04-lts"` | no |
+| <a name="input_vm_image_offer"></a> [vm\_image\_offer](#input\_vm\_image\_offer) | Offer of the VM image | `string` | `"ubuntu-hpc"` | no |
+| <a name="input_vm_image_publisher"></a> [vm\_image\_publisher](#input\_vm\_image\_publisher) | Publisher of the VM image | `string` | `"microsoft-dsvm"` | no |
+| <a name="input_vm_image_sku"></a> [vm\_image\_sku](#input\_vm\_image\_sku) | SKU of the VM image | `string` | `"2204"` | no |
 | <a name="input_vm_image_version"></a> [vm\_image\_version](#input\_vm\_image\_version) | Version of the VM image | `string` | `"latest"` | no |
 | <a name="input_vm_size"></a> [vm\_size](#input\_vm\_size) | Size of the VM to use in the Batch pool | `string` | `"Standard_E16d_v5"` | no |
 
