@@ -15,12 +15,12 @@ output "managed_identity_client_id" {
 
 output "credentials_id" {
   description = "The ID of the credentials"
-  value       = terraform_data.credentials_id.output
+  value       = local.credentials_id
 }
 
 output "seqera_compute_env_id" {
-  description = "The ID of the Tower compute environment"
-  value       = var.create_seqera_compute_env ? restapi_object.seqera_compute_env[0].id : null
+  description = "The ID of the Seqera compute environment"
+  value       = var.create_seqera_compute_env ? seqera_compute_env.seqera_compute_env[0].compute_env_id : null
 }
 
 
