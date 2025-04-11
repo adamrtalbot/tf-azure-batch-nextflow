@@ -18,7 +18,41 @@ This module creates an Azure Batch pool with:
 
 ## Usage
 
-Create a `terraform.tfvars` file with your configuration:
+Create a `terraform.tfvars` file with your variables:
+
+### Minimal example
+
+Here is a minimal example of the `terraform.tfvars` file:
+
+```terraform
+# Minimal example
+resource_group_name = "my_batch_account_resource_group"
+batch_account_name = "mybatchaccount"
+batch_pool_name = "mypool"
+```
+
+If you want to add the compute pool to Seqera Platform, you can set the following variables:
+
+```terraform
+create_seqera_compute_env = true
+seqera_api_endpoint       = "https://cloud.your-seqera.io/api"
+seqera_access_token       = "eyJYOURACCESSTOKENHERE="
+seqera_workspace_id       = "1234567890"
+seqera_work_dir           = "az://azure-blob-container-name"
+seqera_credentials_name   = "azure-creds"
+
+### Full example
+
+Here is a more complete example of the `terraform.tfvars` file, which also:
+
+ - Uses a smaller VM size
+ - Adds a managed identity to the pool for Entra authentication
+ - Allows the pool to access a private container registry
+ - Attaches the compute pool to a specific subnet
+ - Installs a more recent version of azcopy from microsoft
+ - Adds the compute pool to Seqera Platform
+ - Uses the autopool feature to allow Nextflow to create pools dynamically
+ - Adds a pre and post run script to the compute pool
 
 ```terraform
 # Required Azure details
@@ -38,8 +72,16 @@ vm_image_sku = "2204"
 vm_image_version = "latest"
 node_agent_sku_id = "batch.node.ubuntu 22.04"
 
-# Optional AzCopy configuration (default value shown)
-azcopy_url = "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"
+# Start task configuration, use to install the most recent version of azcopy
+start_task_command_line = "bash -c \"tar -xzvf azcopy.tar.gz && chmod +x azcopy*/azcopy && mkdir -p $AZ_BATCH_NODE_SHARED_DIR/bin/ && cp azcopy*/azcopy $AZ_BATCH_NODE_SHARED_DIR/bin/\""
+start_task_resource_files = [
+  {
+    url = "https://github.com/Azure/azure-storage-azcopy/releases/download/v10.28.1/azcopy_linux_amd64_10.28.1.tar.gz"
+    file_path = "azcopy.tar.gz"
+  }
+]
+start_task_elevation_level = "NonAdmin"
+start_task_scope = "Pool"
 
 # Optional networking configuration
 subnet_id = "/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Network/virtualNetworks/<vnet_name>/subnets/<subnet_name>"
@@ -55,16 +97,12 @@ managed_identity_resource_group = "managed-identity-resource-group"
 # 3) use_managed_identity = true (pool's managed identity will be used)
 container_registries = [
   {
-    registry_server = "my-registry-server.azurecr.io"
+    registry_server = "my-registry-server-1.azurecr.io"
     user_name       = "my-username"
     password        = "my-password"
   },
   {
-    registry_server = "my-registry-server.azurecr.io"
-    identity_id     = "/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-managed-identity"
-  },
-  {
-    registry_server     = "my-registry-server.azurecr.io"
+    registry_server     = "my-registry-server-2.azurecr.io"
     use_managed_identity = true
   }
 ]
@@ -80,20 +118,21 @@ seqera_workspace_id       = "1234567890"
 seqera_work_dir           = "az://azure-blob-container-name"
 seqera_credentials_name   = "azure-creds"
 seqera_pre_run_script     = <<-EOT
-#!/bin/bash
 echo 'Hello, world!'
 EOT
 seqera_post_run_script    = <<-EOT
-#!/bin/bash
 echo 'Goodbye, world!'
 EOT
 seqera_nextflow_config      = <<-EOT
 process.queue = "auto"
 process.machineType = "Standard_D*d_v5,Standard_E*d_v5"
+azure.batch.allowPoolCreation = true
+azure.batch.autoPoolMode = true
 azure.batch.pools.auto.autoScale = true
 azure.batch.pools.auto.vmCount = 0
 azure.batch.pools.auto.maxVmCount = 12
 azure.batch.pools.auto.lowPriority = true
+azure.batch.pools.auto.virtualNetwork = "/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Network/virtualNetworks/<vnet_name>/subnets/<subnet_name>"
 EOT
 ```
 
@@ -140,9 +179,8 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_azcopy_url"></a> [azcopy\_url](#input\_azcopy\_url) | URL to download azcopy binary | `string` | `"https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"` | no |
-| <a name="input_batch_account_name"></a> [batch\_account\_name](#input\_batch\_account\_name) | Name of the existing Batch account | `string` | `"seqeracomputebatch"` | no |
-| <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | `"seqerapool"` | no |
+| <a name="input_batch_account_name"></a> [batch\_account\_name](#input\_batch\_account\_name) | Name of the existing Batch account | `string` | n/a | yes |
+| <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | n/a | yes |
 | <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use\_managed\_identity to true. When use\_managed\_identity is true, the pool's managed identity will be used. | <pre>list(object({<br>    registry_server      = string<br>    user_name            = optional(string)<br>    password             = optional(string)<br>    identity_id          = optional(string)<br>    use_managed_identity = optional(bool, false)<br>  }))</pre> | `[]` | no |
 | <a name="input_create_seqera_compute_env"></a> [create\_seqera\_compute\_env](#input\_create\_seqera\_compute\_env) | Whether to create a seqera compute environment | `bool` | `false` | no |
 | <a name="input_managed_identity_name"></a> [managed\_identity\_name](#input\_managed\_identity\_name) | Name of the managed identity to use with Azure Batch | `string` | `"nextflow-id"` | no |
@@ -150,7 +188,7 @@ No modules.
 | <a name="input_max_pool_size"></a> [max\_pool\_size](#input\_max\_pool\_size) | Maximum number of VMs in the pool | `number` | `8` | no |
 | <a name="input_min_pool_size"></a> [min\_pool\_size](#input\_min\_pool\_size) | Minimum number of VMs in the pool | `number` | `0` | no |
 | <a name="input_node_agent_sku_id"></a> [node\_agent\_sku\_id](#input\_node\_agent\_sku\_id) | SKU of the node agent. Must be compatible with the VM image | `string` | `"batch.node.ubuntu 22.04"` | no |
-| <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the resource group of the Azure Batch account | `string` | `"seqeracompute"` | no |
+| <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the resource group of the Azure Batch account | `string` | n/a | yes |
 | <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token which must be generated from the Seqera Platform UI. | `string` | `null` | no |
 | <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
 | <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environment. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
@@ -160,6 +198,10 @@ No modules.
 | <a name="input_seqera_pre_run_script"></a> [seqera\_pre\_run\_script](#input\_seqera\_pre\_run\_script) | Optional script to run before each task execution. Can be a multi-line string using heredoc syntax. | `string` | `null` | no |
 | <a name="input_seqera_work_dir"></a> [seqera\_work\_dir](#input\_seqera\_work\_dir) | Work directory for the Seqera compute environment which is typically an Azure Blob Storage container. Must start with 'az://' | `string` | `null` | no |
 | <a name="input_seqera_workspace_id"></a> [seqera\_workspace\_id](#input\_seqera\_workspace\_id) | Seqera workspace ID where the compute environment will be created. Can by looking at the list of workspaces within an organization on the Seqera Platform. | `number` | `null` | no |
+| <a name="input_start_task_command_line"></a> [start\_task\_command\_line](#input\_start\_task\_command\_line) | Command line to run on the start task | `string` | `"bash -c \"tar -xzvf azcopy.tar.gz && chmod +x azcopy*/azcopy && mkdir -p $AZ_BATCH_NODE_SHARED_DIR/bin/ && cp azcopy*/azcopy $AZ_BATCH_NODE_SHARED_DIR/bin/\""` | no |
+| <a name="input_start_task_elevation_level"></a> [start\_task\_elevation\_level](#input\_start\_task\_elevation\_level) | Elevation level for the start task | `string` | `"NonAdmin"` | no |
+| <a name="input_start_task_resource_files"></a> [start\_task\_resource\_files](#input\_start\_task\_resource\_files) | URL to download azcopy binary | <pre>list(object({<br>    url       = string<br>    file_path = string<br>  }))</pre> | <pre>[<br>  {<br>    "file_path": "azcopy",<br>    "url": "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"<br>  }<br>]</pre> | no |
+| <a name="input_start_task_scope"></a> [start\_task\_scope](#input\_start\_task\_scope) | Scope for the start task | `string` | `"Pool"` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |
 | <a name="input_vm_image_offer"></a> [vm\_image\_offer](#input\_vm\_image\_offer) | Offer of the VM image | `string` | `"ubuntu-hpc"` | no |
 | <a name="input_vm_image_publisher"></a> [vm\_image\_publisher](#input\_vm\_image\_publisher) | Publisher of the VM image | `string` | `"microsoft-dsvm"` | no |
