@@ -27,19 +27,23 @@ variable "max_pool_size" {
 variable "vm_image_publisher" {
   description = "Publisher of the VM image"
   type        = string
-  default     = "microsoft-azure-batch"
+  default     = "microsoft-dsvm"
 }
 
 variable "vm_image_offer" {
   description = "Offer of the VM image"
   type        = string
-  default     = "ubuntu-server-container"
+  default     = "ubuntu-hpc"
 }
 
 variable "vm_image_sku" {
   description = "SKU of the VM image"
   type        = string
-  default     = "20-04-lts"
+  default     = "2204"
+  validation {
+    condition     = !can(regex("\\.", var.vm_image_sku))
+    error_message = "String must not contain periods, e.g. 22.04 -> 2204"
+  }
 }
 
 variable "vm_image_version" {
@@ -51,7 +55,7 @@ variable "vm_image_version" {
 variable "node_agent_sku_id" {
   description = "SKU of the node agent. Must be compatible with the VM image"
   type        = string
-  default     = "batch.node.ubuntu 20.04"
+  default     = "batch.node.ubuntu 22.04"
 }
 
 variable "start_task_command_line" {

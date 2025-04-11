@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
+    seqera = {
+      source  = "seqeralabs/seqera"
+      version = "0.25.2"
+    }
     restapi = {
       source  = "Mastercard/restapi"
       version = "~> 1.18"
@@ -17,10 +21,15 @@ provider "azurerm" {
   features {}
 }
 
-# Add provider configuration for REST API
+# Seqera provider configuration
+provider "seqera" {
+  server_url  = var.seqera_api_endpoint
+  bearer_auth = var.seqera_access_token
+}
+
+# REST API provider for credential lookup
 provider "restapi" {
-  insecure = true
-  uri      = trimsuffix(var.seqera_api_endpoint, "/")
+  uri = trimsuffix(var.seqera_api_endpoint, "/")
   headers = {
     "Authorization" = var.seqera_access_token == null ? "" : "Bearer ${var.seqera_access_token}"
     "Content-Type"  = "application/json"
@@ -30,7 +39,7 @@ provider "restapi" {
   create_returns_object = true
 }
 
-# Get credentials by name
+# Get credentials by name using REST API
 data "restapi_object" "credentials" {
   count        = var.create_seqera_compute_env ? 1 : 0
   path         = "/credentials"
@@ -46,33 +55,10 @@ locals {
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
-  # Only try to access credentials when create_seqera_compute_env is true
+  # Extract credential ID from REST API response
   credentials_id = var.create_seqera_compute_env ? jsondecode(data.restapi_object.credentials[0].api_response).credentials.id : null
 }
 
-resource "terraform_data" "credentials_id" {
-  input = local.credentials_id
-}
-
-resource "terraform_data" "compute_env_name" {
-  input = local.compute_env_name
-}
-
-resource "terraform_data" "managed_identity_id" {
-  input = data.azurerm_user_assigned_identity.mi.id
-}
-
-resource "terraform_data" "pre_run_script" {
-  input = var.seqera_pre_run_script
-}
-
-resource "terraform_data" "post_run_script" {
-  input = var.seqera_post_run_script
-}
-
-resource "terraform_data" "nextflow_config" {
-  input = var.seqera_nextflow_config
-}
 
 # Batch pool
 resource "azurerm_batch_pool" "pool" {
@@ -166,49 +152,40 @@ resource "azurerm_batch_pool" "pool" {
   }
 }
 
-# Replace null_resource with restapi_object
-resource "restapi_object" "seqera_compute_env" {
-  count          = var.create_seqera_compute_env ? 1 : 0
-  path           = "/compute-envs"
-  query_string   = "workspaceId=${var.seqera_workspace_id}"
-  create_method  = "POST"
-  id_attribute   = "computeEnvId"
-  destroy_method = "DELETE"
+# Create Seqera compute environment using the new provider
+resource "seqera_compute_env" "seqera_compute_env" {
+  count        = var.create_seqera_compute_env ? 1 : 0
+  workspace_id = var.seqera_workspace_id
 
-  data = jsonencode({
-    computeEnv = {
-      credentialsId = local.credentials_id
-      name          = local.compute_env_name
-      platform      = "azure-batch"
-      config = {
-        workDir                 = var.seqera_work_dir
-        region                  = data.azurerm_resource_group.rg.location
-        headPool                = var.batch_pool_name
-        managedIdentityClientId = data.azurerm_user_assigned_identity.mi.client_id
-        preRunScript            = terraform_data.pre_run_script.output
-        postRunScript           = terraform_data.post_run_script.output
-        nextflowConfig          = terraform_data.nextflow_config.output
+  compute_env = {
+    name           = local.compute_env_name
+    platform       = "azure-batch"
+    credentials_id = local.credentials_id
+    description    = "Azure Batch compute environment for Nextflow workflows"
+
+    config = {
+      azure_batch = {
+        work_dir                   = var.seqera_work_dir
+        region                     = data.azurerm_resource_group.rg.location
+        head_pool                  = var.batch_pool_name
+        managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
+        pre_run_script             = var.seqera_pre_run_script
+        post_run_script            = var.seqera_post_run_script
+        nextflow_config            = var.seqera_nextflow_config
+        # Forge block required by provider but inactive when head_pool is set
+        forge = {
+          vm_count            = 1                 # Ignored when head_pool is set
+          auto_scale          = false             # CRITICAL: Disables Seqera auto-scaling
+          dispose_on_deletion = true              # Clean up any Forge resources
+          vm_type             = "Standard_D2s_v3" # Required by schema but ignored in manual mode
+        }
       }
     }
-  })
+  }
 
   depends_on = [
-    azurerm_batch_pool.pool,
-    terraform_data.pre_run_script,
-    terraform_data.post_run_script,
-    terraform_data.nextflow_config
+    azurerm_batch_pool.pool
   ]
-
-  lifecycle {
-    replace_triggered_by = [
-      terraform_data.credentials_id.output,
-      terraform_data.compute_env_name.output,
-      terraform_data.managed_identity_id.output,
-      terraform_data.pre_run_script.output,
-      terraform_data.post_run_script.output,
-      terraform_data.nextflow_config.output
-    ]
-  }
 }
 
 # Add data source to get resource group location
