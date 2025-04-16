@@ -40,6 +40,7 @@ seqera_access_token       = "eyJYOURACCESSTOKENHERE="
 seqera_workspace_id       = "1234567890"
 seqera_work_dir           = "az://azure-blob-container-name"
 seqera_credentials_name   = "azure-creds"
+```
 
 ### Full example
 
@@ -108,7 +109,7 @@ container_registries = [
 ]
 ```
 
-If you want to add the compute pool to Seqera Platform, you can set the following variables:
+You can configure additional compute environment settings to Seqera Platform via these variables:
 
 ```terraform
 create_seqera_compute_env = true
