@@ -6,7 +6,7 @@ This Terraform configuration creates an Azure Batch pool optimized for running N
 
 This module creates an Azure Batch pool with:
 
-- Docker-compatible nodes (Ubuntu 20.04 LTS by default)
+- Docker-compatible nodes (Microsoft DSVM Ubuntu 22.04 LTS by default)
 - Automatic scaling based on pending tasks with a 5-minute evaluation interval
 - Maximum tasks per node set to match the VM's CPU core count
 - Pre-installed azcopy for efficient data transfer using the startTask
