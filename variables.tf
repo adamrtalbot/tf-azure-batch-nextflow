@@ -39,10 +39,10 @@ variable "vm_image_offer" {
 variable "vm_image_sku" {
   description = "SKU of the VM image"
   type        = string
-  default     = "2204"
+  default     = "2404"
   validation {
     condition     = !can(regex("\\.", var.vm_image_sku))
-    error_message = "String must not contain periods, e.g. 22.04 -> 2204"
+    error_message = "String must not contain periods, e.g. 24.04 -> 2404"
   }
 }
 
@@ -55,7 +55,7 @@ variable "vm_image_version" {
 variable "node_agent_sku_id" {
   description = "SKU of the node agent. Must be compatible with the VM image"
   type        = string
-  default     = "batch.node.ubuntu 22.04"
+  default     = "batch.node.ubuntu 24.04"
 }
 
 variable "start_task_command_line" {
