@@ -6,7 +6,7 @@ This Terraform configuration creates an Azure Batch pool optimized for running N
 
 This module creates an Azure Batch pool with:
 
-- Docker-compatible nodes (Ubuntu 20.04 LTS by default)
+- Docker-compatible nodes (Microsoft DSVM Ubuntu 22.04 LTS by default)
 - Automatic scaling based on pending tasks with a 5-minute evaluation interval
 - Maximum tasks per node set to match the VM's CPU core count
 - Pre-installed azcopy for efficient data transfer using the startTask
@@ -40,6 +40,7 @@ seqera_access_token       = "eyJYOURACCESSTOKENHERE="
 seqera_workspace_id       = "1234567890"
 seqera_work_dir           = "az://azure-blob-container-name"
 seqera_credentials_name   = "azure-creds"
+```
 
 ### Full example
 
@@ -108,7 +109,7 @@ container_registries = [
 ]
 ```
 
-If you want to add the compute pool to Seqera Platform, you can set the following variables:
+You can configure additional compute environment settings to Seqera Platform via these variables:
 
 ```terraform
 create_seqera_compute_env = true
@@ -148,16 +149,14 @@ Run `terraform init` and `terraform apply` to create the Batch pool. You should 
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | ~> 3.0 |
-| <a name="requirement_restapi"></a> [restapi](#requirement\_restapi) | ~> 1.18 |
-| <a name="requirement_seqera"></a> [seqera](#requirement\_seqera) | 0.25.2 |
+| <a name="requirement_seqera"></a> [seqera](#requirement\_seqera) | ~> 0.26 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 3.117.1 |
-| <a name="provider_restapi"></a> [restapi](#provider\_restapi) | 1.20.0 |
-| <a name="provider_seqera"></a> [seqera](#provider\_seqera) | 0.25.2 |
+| <a name="provider_seqera"></a> [seqera](#provider\_seqera) | 0.26.5 |
 
 ## Modules
 
@@ -168,7 +167,7 @@ No modules.
 | Name | Type |
 |------|------|
 | [azurerm_batch_pool.pool](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/batch_pool) | resource |
-| [seqera_compute_env.seqera_compute_env](https://registry.terraform.io/providers/seqeralabs/seqera/0.25.2/docs/resources/compute_env) | resource |
+| [seqera_compute_env.azure_batch](https://registry.terraform.io/providers/seqeralabs/seqera/latest/docs/resources/compute_env) | resource |
 
 ## Inputs
 

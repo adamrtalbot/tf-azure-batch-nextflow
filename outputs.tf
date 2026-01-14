@@ -20,7 +20,7 @@ output "credentials_id" {
 
 output "seqera_compute_env_id" {
   description = "The ID of the Seqera compute environment"
-  value       = var.create_seqera_compute_env ? seqera_compute_env.seqera_compute_env[0].compute_env_id : null
+  value       = var.create_seqera_compute_env ? seqera_compute_env.azure_batch[0].compute_env_id : null
 }
 
 

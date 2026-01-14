@@ -8,11 +8,7 @@ terraform {
     }
     seqera = {
       source  = "seqeralabs/seqera"
-      version = "0.25.2"
-    }
-    restapi = {
-      source  = "Mastercard/restapi"
-      version = "~> 1.18"
+      version = "~> 0.26"
     }
   }
 }
@@ -21,32 +17,15 @@ provider "azurerm" {
   features {}
 }
 
-# Seqera provider configuration
 provider "seqera" {
-  server_url  = var.seqera_api_endpoint
+  server_url  = trimsuffix(var.seqera_api_endpoint, "/")
   bearer_auth = var.seqera_access_token
 }
 
-# REST API provider for credential lookup
-provider "restapi" {
-  uri = trimsuffix(var.seqera_api_endpoint, "/")
-  headers = {
-    "Authorization" = var.seqera_access_token == null ? "" : "Bearer ${var.seqera_access_token}"
-    "Content-Type"  = "application/json"
-    "Accept"        = "application/json"
-  }
-  write_returns_object  = true
-  create_returns_object = true
-}
-
-# Get credentials by name using REST API
-data "restapi_object" "credentials" {
+# Get credentials by name using seqera_credentials data source
+data "seqera_credentials" "workspace_credentials" {
   count        = var.create_seqera_compute_env ? 1 : 0
-  path         = "/credentials"
-  search_key   = "name"
-  search_value = var.seqera_credentials_name
-  query_string = "workspaceId=${var.seqera_workspace_id}"
-  results_key  = "credentials"
+  workspace_id = var.seqera_workspace_id
 }
 
 locals {
@@ -55,10 +34,15 @@ locals {
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
-  # Extract credential ID from REST API response
-  credentials_id = var.create_seqera_compute_env ? jsondecode(data.restapi_object.credentials[0].api_response).credentials.id : null
-}
 
+  # Create a map of credentials indexed by name for easy lookup
+  credentials_map = var.create_seqera_compute_env ? {
+    for cred in data.seqera_credentials.workspace_credentials[0].credentials : cred.name => cred
+  } : {}
+
+  # Look up the credential ID by name
+  credentials_id = var.create_seqera_compute_env && var.seqera_credentials_name != null ? lookup(local.credentials_map, var.seqera_credentials_name, null).id : null
+}
 
 # Batch pool
 resource "azurerm_batch_pool" "pool" {
@@ -152,8 +136,8 @@ resource "azurerm_batch_pool" "pool" {
   }
 }
 
-# Create Seqera compute environment using the new provider
-resource "seqera_compute_env" "seqera_compute_env" {
+# Seqera Platform compute environment
+resource "seqera_compute_env" "azure_batch" {
   count        = var.create_seqera_compute_env ? 1 : 0
   workspace_id = var.seqera_workspace_id
 
@@ -161,31 +145,19 @@ resource "seqera_compute_env" "seqera_compute_env" {
     name           = local.compute_env_name
     platform       = "azure-batch"
     credentials_id = local.credentials_id
-    description    = "Azure Batch compute environment for Nextflow workflows"
 
     config = {
       azure_batch = {
-        work_dir                   = var.seqera_work_dir
         region                     = data.azurerm_resource_group.rg.location
-        head_pool                  = var.batch_pool_name
+        work_dir                   = var.seqera_work_dir
+        head_pool                  = azurerm_batch_pool.pool.name
         managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
         pre_run_script             = var.seqera_pre_run_script
         post_run_script            = var.seqera_post_run_script
         nextflow_config            = var.seqera_nextflow_config
-        # Forge block required by provider but inactive when head_pool is set
-        forge = {
-          vm_count            = 1                 # Ignored when head_pool is set
-          auto_scale          = false             # CRITICAL: Disables Seqera auto-scaling
-          dispose_on_deletion = true              # Clean up any Forge resources
-          vm_type             = "Standard_D2s_v3" # Required by schema but ignored in manual mode
-        }
       }
     }
   }
-
-  depends_on = [
-    azurerm_batch_pool.pool
-  ]
 }
 
 # Add data source to get resource group location
