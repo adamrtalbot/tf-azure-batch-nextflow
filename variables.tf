@@ -98,8 +98,14 @@ variable "start_task_scope" {
   }
 }
 
+variable "enable_fusion" {
+  description = "Enable Fusion v2 support in the compute environment."
+  type        = bool
+  default     = false
+}
+
 variable "subnet_id" {
-  description = "Optional ID of the subnet to connect the pool to"
+  description = "Optional Azure VNet subnet resource ID."
   type        = string
   default     = null
 }

@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.11"
 
   required_providers {
     azurerm = {
@@ -8,7 +8,7 @@ terraform {
     }
     seqera = {
       source  = "seqeralabs/seqera"
-      version = "~> 0.26"
+      version = "~> 0.40"
     }
   }
 }
@@ -34,6 +34,34 @@ locals {
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
+
+  # AppArmor profile required for Fusion to mount its FUSE filesystem on hosts
+  # that enforce AppArmor (Ubuntu 24.04+). Seqera Platform automatically passes
+  # `--security-opt apparmor=seqera-fusionfs-container` to task containers when
+  # Fusion is enabled, so the matching profile must be present on each node.
+  apparmor_profile = <<-APPARMOR
+  abi <abi/4.0>,
+  include <tunables/global>
+
+  profile seqera-fusionfs-container flags=(default_allow) {
+    userns,
+    mount fstype=fuse.fusion -> /fusion/,
+    mount fstype=fuse.fusion -> /fusion/**,
+    umount,
+    include <abstractions/base>
+    include <abstractions/nameservice>
+
+    include if exists <local/seqera-fusionfs-container>
+  }
+  APPARMOR
+
+  # When Fusion is enabled, prepend the start task with commands that install and
+  # load the AppArmor profile before running the user-supplied start task. Writing
+  # to /etc/apparmor.d and running apparmor_parser require root, so Fusion forces
+  # the start task to run with Admin elevation.
+  start_task_command_line = var.enable_fusion ? "/bin/bash -c 'echo ${base64encode(local.apparmor_profile)} | base64 -d > /etc/apparmor.d/seqera-fusionfs-container && apparmor_parser -r /etc/apparmor.d/seqera-fusionfs-container && ${var.start_task_command_line}'" : var.start_task_command_line
+
+  start_task_elevation_level = var.enable_fusion ? "Admin" : var.start_task_elevation_level
 
   # Create a map of credentials indexed by name for easy lookup
   credentials_map = var.create_seqera_compute_env ? {
@@ -112,16 +140,16 @@ resource "azurerm_batch_pool" "pool" {
     EOF
   }
 
-  # Start task to install azcopy
+  # Start task to install azcopy (and load the Fusion AppArmor profile when enabled)
   start_task {
-    command_line     = var.start_task_command_line
+    command_line     = local.start_task_command_line
     wait_for_success = true
 
     task_retry_maximum = 0
 
     user_identity {
       auto_user {
-        elevation_level = var.start_task_elevation_level
+        elevation_level = local.start_task_elevation_level
         scope           = var.start_task_scope
       }
     }
@@ -148,13 +176,18 @@ resource "seqera_compute_env" "azure_batch" {
 
     config = {
       azure_batch = {
-        region                     = data.azurerm_resource_group.rg.location
-        work_dir                   = var.seqera_work_dir
-        head_pool                  = azurerm_batch_pool.pool.name
-        managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
-        pre_run_script             = var.seqera_pre_run_script
-        post_run_script            = var.seqera_post_run_script
-        nextflow_config            = var.seqera_nextflow_config
+        region   = data.azurerm_resource_group.rg.location
+        work_dir = var.seqera_work_dir
+
+        head_pool                         = azurerm_batch_pool.pool.name
+        managed_identity_client_id        = data.azurerm_user_assigned_identity.mi.client_id
+        managed_identity_head_resource_id = data.azurerm_user_assigned_identity.mi.id
+        subnet_id                         = var.subnet_id
+        pre_run_script                    = var.seqera_pre_run_script
+        post_run_script                   = var.seqera_post_run_script
+        nextflow_config                   = var.seqera_nextflow_config
+        enable_wave                       = var.enable_fusion
+        enable_fusion                     = var.enable_fusion
       }
     }
   }

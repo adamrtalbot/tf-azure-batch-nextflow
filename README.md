@@ -142,21 +142,39 @@ Run `terraform init` and `terraform apply` to create the Batch pool. You should 
 > [!NOTE]
 > For multi-line strings like `seqera_pre_run_script`, `seqera_post_run_script`, and `seqera_nextflow_config`, you must use heredoc syntax (`<<-EOT` and `EOT`) as shown in the example above. See Terraform documentation [here](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for more information.
 
+### Enabling Fusion v2
+
+Set `enable_fusion = true` to run pipelines with the [Fusion v2](https://docs.seqera.io/fusion) file system. When enabled, the module:
+
+- Installs and loads the `seqera-fusionfs-container` AppArmor profile on each pool node via the start task. AppArmor enforcement on Ubuntu 24.04+ nodes requires this profile so Fusion can mount its FUSE filesystem.
+- Forces the start task to run with `Admin` elevation (writing to `/etc/apparmor.d` and running `apparmor_parser` require root).
+- Enables Wave and Fusion on the Seqera compute environment (Fusion requires Wave).
+
+Seqera Platform automatically passes `--security-opt apparmor=seqera-fusionfs-container` to task containers, so no additional `containerOptions` configuration is needed.
+
+```terraform
+create_seqera_compute_env = true
+enable_fusion             = true
+# Fusion's AppArmor profile targets the AppArmor 4.0 ABI, so use Ubuntu 24.04 nodes:
+vm_image_sku      = "2404"
+node_agent_sku_id = "batch.node.ubuntu 24.04"
+```
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.11 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | ~> 3.0 |
-| <a name="requirement_seqera"></a> [seqera](#requirement\_seqera) | ~> 0.26 |
+| <a name="requirement_seqera"></a> [seqera](#requirement\_seqera) | ~> 0.40 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 3.117.1 |
-| <a name="provider_seqera"></a> [seqera](#provider\_seqera) | 0.26.5 |
+| <a name="provider_seqera"></a> [seqera](#provider\_seqera) | 0.40.1 |
 
 ## Modules
 
@@ -177,6 +195,7 @@ No modules.
 | <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | n/a | yes |
 | <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use\_managed\_identity to true. When use\_managed\_identity is true, the pool's managed identity will be used. | <pre>list(object({<br>    registry_server      = string<br>    user_name            = optional(string)<br>    password             = optional(string)<br>    identity_id          = optional(string)<br>    use_managed_identity = optional(bool, false)<br>  }))</pre> | `[]` | no |
 | <a name="input_create_seqera_compute_env"></a> [create\_seqera\_compute\_env](#input\_create\_seqera\_compute\_env) | Whether to create a seqera compute environment | `bool` | `false` | no |
+| <a name="input_enable_fusion"></a> [enable\_fusion](#input\_enable\_fusion) | Enable Fusion v2 support in the compute environment. | `bool` | `false` | no |
 | <a name="input_managed_identity_name"></a> [managed\_identity\_name](#input\_managed\_identity\_name) | Name of the managed identity to use with Azure Batch | `string` | `"nextflow-id"` | no |
 | <a name="input_managed_identity_resource_group"></a> [managed\_identity\_resource\_group](#input\_managed\_identity\_resource\_group) | Resource group containing the managed identity | `string` | `null` | no |
 | <a name="input_max_pool_size"></a> [max\_pool\_size](#input\_max\_pool\_size) | Maximum number of VMs in the pool | `number` | `8` | no |
@@ -196,7 +215,7 @@ No modules.
 | <a name="input_start_task_elevation_level"></a> [start\_task\_elevation\_level](#input\_start\_task\_elevation\_level) | Elevation level for the start task | `string` | `"NonAdmin"` | no |
 | <a name="input_start_task_resource_files"></a> [start\_task\_resource\_files](#input\_start\_task\_resource\_files) | URL to download azcopy binary | <pre>list(object({<br>    url       = string<br>    file_path = string<br>  }))</pre> | <pre>[<br>  {<br>    "file_path": "azcopy",<br>    "url": "https://nf-xpack.seqera.io/azcopy/linux_amd64_10.8.0/azcopy"<br>  }<br>]</pre> | no |
 | <a name="input_start_task_scope"></a> [start\_task\_scope](#input\_start\_task\_scope) | Scope for the start task | `string` | `"Pool"` | no |
-| <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional ID of the subnet to connect the pool to | `string` | `null` | no |
+| <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | Optional Azure VNet subnet resource ID. | `string` | `null` | no |
 | <a name="input_vm_image_offer"></a> [vm\_image\_offer](#input\_vm\_image\_offer) | Offer of the VM image | `string` | `"ubuntu-hpc"` | no |
 | <a name="input_vm_image_publisher"></a> [vm\_image\_publisher](#input\_vm\_image\_publisher) | Publisher of the VM image | `string` | `"microsoft-dsvm"` | no |
 | <a name="input_vm_image_sku"></a> [vm\_image\_sku](#input\_vm\_image\_sku) | SKU of the VM image | `string` | `"2204"` | no |
