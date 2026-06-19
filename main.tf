@@ -1,14 +1,14 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.11"
 
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
-    restapi = {
-      source  = "Mastercard/restapi"
-      version = "~> 1.18"
+    seqera = {
+      source  = "seqeralabs/seqera"
+      version = "~> 0.40"
     }
   }
 }
@@ -17,27 +17,15 @@ provider "azurerm" {
   features {}
 }
 
-# Add provider configuration for REST API
-provider "restapi" {
-  insecure = true
-  uri      = trimsuffix(var.seqera_api_endpoint, "/")
-  headers = {
-    "Authorization" = var.seqera_access_token == null ? "" : "Bearer ${var.seqera_access_token}"
-    "Content-Type"  = "application/json"
-    "Accept"        = "application/json"
-  }
-  write_returns_object  = true
-  create_returns_object = true
+provider "seqera" {
+  server_url  = trimsuffix(var.seqera_api_endpoint, "/")
+  bearer_auth = var.seqera_access_token
 }
 
-# Get credentials by name
-data "restapi_object" "credentials" {
+# Get credentials by name using seqera_credentials data source
+data "seqera_credentials" "workspace_credentials" {
   count        = var.create_seqera_compute_env ? 1 : 0
-  path         = "/credentials"
-  search_key   = "name"
-  search_value = var.seqera_credentials_name
-  query_string = "workspaceId=${var.seqera_workspace_id}"
-  results_key  = "credentials"
+  workspace_id = var.seqera_workspace_id
 }
 
 locals {
@@ -46,32 +34,42 @@ locals {
   # Handles cases like Standard_D2_v3, Standard_DS4_v2, Standard_NP20s, Standard_L48s_v3
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
-  # Only try to access credentials when create_seqera_compute_env is true
-  credentials_id = var.create_seqera_compute_env ? jsondecode(data.restapi_object.credentials[0].api_response).credentials.id : null
-}
 
-resource "terraform_data" "credentials_id" {
-  input = local.credentials_id
-}
+  # AppArmor profile required for Fusion to mount its FUSE filesystem on hosts
+  # that enforce AppArmor (Ubuntu 24.04+). Seqera Platform automatically passes
+  # `--security-opt apparmor=seqera-fusionfs-container` to task containers when
+  # Fusion is enabled, so the matching profile must be present on each node.
+  apparmor_profile = <<-APPARMOR
+  abi <abi/4.0>,
+  include <tunables/global>
 
-resource "terraform_data" "compute_env_name" {
-  input = local.compute_env_name
-}
+  profile seqera-fusionfs-container flags=(default_allow) {
+    userns,
+    mount fstype=fuse.fusion -> /fusion/,
+    mount fstype=fuse.fusion -> /fusion/**,
+    umount,
+    include <abstractions/base>
+    include <abstractions/nameservice>
 
-resource "terraform_data" "managed_identity_id" {
-  input = data.azurerm_user_assigned_identity.mi.id
-}
+    include if exists <local/seqera-fusionfs-container>
+  }
+  APPARMOR
 
-resource "terraform_data" "pre_run_script" {
-  input = var.seqera_pre_run_script
-}
+  # When Fusion is enabled, prepend the start task with commands that install and
+  # load the AppArmor profile before running the user-supplied start task. Writing
+  # to /etc/apparmor.d and running apparmor_parser require root, so Fusion forces
+  # the start task to run with Admin elevation.
+  start_task_command_line = var.enable_fusion ? "/bin/bash -c 'echo ${base64encode(local.apparmor_profile)} | base64 -d > /etc/apparmor.d/seqera-fusionfs-container && apparmor_parser -r /etc/apparmor.d/seqera-fusionfs-container && ${var.start_task_command_line}'" : var.start_task_command_line
 
-resource "terraform_data" "post_run_script" {
-  input = var.seqera_post_run_script
-}
+  start_task_elevation_level = var.enable_fusion ? "Admin" : var.start_task_elevation_level
 
-resource "terraform_data" "nextflow_config" {
-  input = var.seqera_nextflow_config
+  # Create a map of credentials indexed by name for easy lookup
+  credentials_map = var.create_seqera_compute_env ? {
+    for cred in data.seqera_credentials.workspace_credentials[0].credentials : cred.name => cred
+  } : {}
+
+  # Look up the credential ID by name
+  credentials_id = var.create_seqera_compute_env && var.seqera_credentials_name != null ? lookup(local.credentials_map, var.seqera_credentials_name, null).id : null
 }
 
 # Batch pool
@@ -142,16 +140,16 @@ resource "azurerm_batch_pool" "pool" {
     EOF
   }
 
-  # Start task to install azcopy
+  # Start task to install azcopy (and load the Fusion AppArmor profile when enabled)
   start_task {
-    command_line     = var.start_task_command_line
+    command_line     = local.start_task_command_line
     wait_for_success = true
 
     task_retry_maximum = 0
 
     user_identity {
       auto_user {
-        elevation_level = var.start_task_elevation_level
+        elevation_level = local.start_task_elevation_level
         scope           = var.start_task_scope
       }
     }
@@ -166,48 +164,32 @@ resource "azurerm_batch_pool" "pool" {
   }
 }
 
-# Replace null_resource with restapi_object
-resource "restapi_object" "seqera_compute_env" {
-  count          = var.create_seqera_compute_env ? 1 : 0
-  path           = "/compute-envs"
-  query_string   = "workspaceId=${var.seqera_workspace_id}"
-  create_method  = "POST"
-  id_attribute   = "computeEnvId"
-  destroy_method = "DELETE"
+# Seqera Platform compute environment
+resource "seqera_compute_env" "azure_batch" {
+  count        = var.create_seqera_compute_env ? 1 : 0
+  workspace_id = var.seqera_workspace_id
 
-  data = jsonencode({
-    computeEnv = {
-      credentialsId = local.credentials_id
-      name          = local.compute_env_name
-      platform      = "azure-batch"
-      config = {
-        workDir                 = var.seqera_work_dir
-        region                  = data.azurerm_resource_group.rg.location
-        headPool                = var.batch_pool_name
-        managedIdentityClientId = data.azurerm_user_assigned_identity.mi.client_id
-        preRunScript            = terraform_data.pre_run_script.output
-        postRunScript           = terraform_data.post_run_script.output
-        nextflowConfig          = terraform_data.nextflow_config.output
+  compute_env = {
+    name           = local.compute_env_name
+    platform       = "azure-batch"
+    credentials_id = local.credentials_id
+
+    config = {
+      azure_batch = {
+        region   = data.azurerm_resource_group.rg.location
+        work_dir = var.seqera_work_dir
+
+        head_pool                         = azurerm_batch_pool.pool.name
+        managed_identity_client_id        = data.azurerm_user_assigned_identity.mi.client_id
+        managed_identity_head_resource_id = data.azurerm_user_assigned_identity.mi.id
+        subnet_id                         = var.subnet_id
+        pre_run_script                    = var.seqera_pre_run_script
+        post_run_script                   = var.seqera_post_run_script
+        nextflow_config                   = var.seqera_nextflow_config
+        enable_wave                       = var.enable_fusion
+        enable_fusion                     = var.enable_fusion
       }
     }
-  })
-
-  depends_on = [
-    azurerm_batch_pool.pool,
-    terraform_data.pre_run_script,
-    terraform_data.post_run_script,
-    terraform_data.nextflow_config
-  ]
-
-  lifecycle {
-    replace_triggered_by = [
-      terraform_data.credentials_id.output,
-      terraform_data.compute_env_name.output,
-      terraform_data.managed_identity_id.output,
-      terraform_data.pre_run_script.output,
-      terraform_data.post_run_script.output,
-      terraform_data.nextflow_config.output
-    ]
   }
 }
 

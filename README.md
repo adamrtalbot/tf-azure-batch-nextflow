@@ -142,22 +142,39 @@ Run `terraform init` and `terraform apply` to create the Batch pool. You should 
 > [!NOTE]
 > For multi-line strings like `seqera_pre_run_script`, `seqera_post_run_script`, and `seqera_nextflow_config`, you must use heredoc syntax (`<<-EOT` and `EOT`) as shown in the example above. See Terraform documentation [here](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for more information.
 
+### Enabling Fusion v2
+
+Set `enable_fusion = true` to run pipelines with the [Fusion v2](https://docs.seqera.io/fusion) file system. When enabled, the module:
+
+- Installs and loads the `seqera-fusionfs-container` AppArmor profile on each pool node via the start task. AppArmor enforcement on Ubuntu 24.04+ nodes requires this profile so Fusion can mount its FUSE filesystem.
+- Forces the start task to run with `Admin` elevation (writing to `/etc/apparmor.d` and running `apparmor_parser` require root).
+- Enables Wave and Fusion on the Seqera compute environment (Fusion requires Wave).
+
+Seqera Platform automatically passes `--security-opt apparmor=seqera-fusionfs-container` to task containers, so no additional `containerOptions` configuration is needed.
+
+```terraform
+create_seqera_compute_env = true
+enable_fusion             = true
+# Fusion's AppArmor profile targets the AppArmor 4.0 ABI, so use Ubuntu 24.04 nodes:
+vm_image_sku      = "2404"
+node_agent_sku_id = "batch.node.ubuntu 24.04"
+```
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.11 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | ~> 3.0 |
-| <a name="requirement_restapi"></a> [restapi](#requirement\_restapi) | ~> 1.18 |
+| <a name="requirement_seqera"></a> [seqera](#requirement\_seqera) | ~> 0.40 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 3.117.1 |
-| <a name="provider_restapi"></a> [restapi](#provider\_restapi) | 1.20.0 |
-| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
+| <a name="provider_seqera"></a> [seqera](#provider\_seqera) | 0.40.1 |
 
 ## Modules
 
@@ -168,13 +185,7 @@ No modules.
 | Name | Type |
 |------|------|
 | [azurerm_batch_pool.pool](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/batch_pool) | resource |
-| [restapi_object.seqera_compute_env](https://registry.terraform.io/providers/Mastercard/restapi/latest/docs/resources/object) | resource |
-| [terraform_data.compute_env_name](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
-| [terraform_data.credentials_id](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
-| [terraform_data.managed_identity_id](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
-| [terraform_data.nextflow_config](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
-| [terraform_data.post_run_script](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
-| [terraform_data.pre_run_script](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [seqera_compute_env.azure_batch](https://registry.terraform.io/providers/seqeralabs/seqera/latest/docs/resources/compute_env) | resource |
 
 ## Inputs
 
@@ -184,6 +195,7 @@ No modules.
 | <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | n/a | yes |
 | <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use\_managed\_identity to true. When use\_managed\_identity is true, the pool's managed identity will be used. | <pre>list(object({<br>    registry_server      = string<br>    user_name            = optional(string)<br>    password             = optional(string)<br>    identity_id          = optional(string)<br>    use_managed_identity = optional(bool, false)<br>  }))</pre> | `[]` | no |
 | <a name="input_create_seqera_compute_env"></a> [create\_seqera\_compute\_env](#input\_create\_seqera\_compute\_env) | Whether to create a seqera compute environment | `bool` | `false` | no |
+| <a name="input_enable_fusion"></a> [enable\_fusion](#input\_enable\_fusion) | Enable Fusion v2 support in the compute environment. | `bool` | `false` | no |
 | <a name="input_managed_identity_name"></a> [managed\_identity\_name](#input\_managed\_identity\_name) | Name of the managed identity to use with Azure Batch | `string` | `"nextflow-id"` | no |
 | <a name="input_managed_identity_resource_group"></a> [managed\_identity\_resource\_group](#input\_managed\_identity\_resource\_group) | Resource group containing the managed identity | `string` | `null` | no |
 | <a name="input_max_pool_size"></a> [max\_pool\_size](#input\_max\_pool\_size) | Maximum number of VMs in the pool | `number` | `8` | no |
@@ -218,5 +230,5 @@ No modules.
 | <a name="output_batch_pool_name"></a> [batch\_pool\_name](#output\_batch\_pool\_name) | The name of the Azure Batch pool |
 | <a name="output_credentials_id"></a> [credentials\_id](#output\_credentials\_id) | The ID of the credentials |
 | <a name="output_managed_identity_client_id"></a> [managed\_identity\_client\_id](#output\_managed\_identity\_client\_id) | The client ID of the managed identity |
-| <a name="output_seqera_compute_env_id"></a> [seqera\_compute\_env\_id](#output\_seqera\_compute\_env\_id) | The ID of the Tower compute environment |
+| <a name="output_seqera_compute_env_id"></a> [seqera\_compute\_env\_id](#output\_seqera\_compute\_env\_id) | The ID of the Seqera compute environment |
 <!-- END_TF_DOCS -->
