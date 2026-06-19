@@ -105,7 +105,7 @@ variable "enable_fusion" {
 }
 
 variable "subnet_id" {
-  description = "Optional Azure VNet subnet resource ID."
+  description = "Optional ID of the subnet to connect the pool to"
   type        = string
   default     = null
 }
