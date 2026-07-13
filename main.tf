@@ -8,7 +8,7 @@ terraform {
     }
     seqera = {
       source  = "seqeralabs/seqera"
-      version = "~> 0.40"
+      version = "~> 0.41.0"
     }
   }
 }
@@ -179,15 +179,14 @@ resource "seqera_compute_env" "azure_batch" {
         region   = data.azurerm_resource_group.rg.location
         work_dir = var.seqera_work_dir
 
-        head_pool                         = azurerm_batch_pool.pool.name
-        managed_identity_client_id        = data.azurerm_user_assigned_identity.mi.client_id
-        managed_identity_head_resource_id = data.azurerm_user_assigned_identity.mi.id
-        subnet_id                         = var.subnet_id
-        pre_run_script                    = var.seqera_pre_run_script
-        post_run_script                   = var.seqera_post_run_script
-        nextflow_config                   = var.seqera_nextflow_config
-        enable_wave                       = var.enable_fusion
-        enable_fusion                     = var.enable_fusion
+        head_pool                  = azurerm_batch_pool.pool.name
+        managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
+        subnet_id                  = var.subnet_id
+        pre_run_script             = var.seqera_pre_run_script
+        post_run_script            = var.seqera_post_run_script
+        nextflow_config            = var.seqera_nextflow_config
+        enable_wave                = var.enable_fusion
+        enable_fusion              = var.enable_fusion
       }
     }
   }
