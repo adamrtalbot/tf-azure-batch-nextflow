@@ -35,6 +35,13 @@ locals {
   slots            = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.vm_size)[0]) : 1
   compute_env_name = coalesce(var.seqera_compute_env_name, var.batch_pool_name)
 
+  # Worker pool configuration (dual pool mode)
+  worker_pool_name             = var.enable_dual_pool ? coalesce(var.worker_pool_name, "${var.batch_pool_name}-worker") : null
+  worker_slots                 = can(regex("[A-Za-z]+[Ss]?(\\d+)", var.worker_vm_size)) ? tonumber(regex("[A-Za-z]+[Ss]?(\\d+)", var.worker_vm_size)[0]) : 1
+  use_separate_worker_identity = var.enable_dual_pool && var.worker_managed_identity_name != null
+  worker_identity_id           = local.use_separate_worker_identity ? data.azurerm_user_assigned_identity.worker_mi[0].id : data.azurerm_user_assigned_identity.mi.id
+  worker_identity_client_id    = local.use_separate_worker_identity ? data.azurerm_user_assigned_identity.worker_mi[0].client_id : data.azurerm_user_assigned_identity.mi.client_id
+
   # AppArmor profile required for Fusion to mount its FUSE filesystem on hosts
   # that enforce AppArmor (Ubuntu 24.04+). Seqera Platform automatically passes
   # `--security-opt apparmor=seqera-fusionfs-container` to task containers when
@@ -164,6 +171,96 @@ resource "azurerm_batch_pool" "pool" {
   }
 }
 
+# Worker pool (dual pool mode only)
+resource "azurerm_batch_pool" "worker" {
+  count = var.enable_dual_pool ? 1 : 0
+
+  name                = local.worker_pool_name
+  resource_group_name = var.resource_group_name
+  account_name        = var.batch_account_name
+  display_name        = "Seqera Worker Pool"
+  vm_size             = var.worker_vm_size
+  node_agent_sku_id   = var.node_agent_sku_id
+  max_tasks_per_node  = local.worker_slots
+
+  dynamic "network_configuration" {
+    for_each = var.subnet_id != null ? [1] : []
+    content {
+      subnet_id = var.subnet_id
+    }
+  }
+
+  dynamic "identity" {
+    for_each = var.managed_identity_name != "" ? [1] : []
+    content {
+      type         = "UserAssigned"
+      identity_ids = [local.worker_identity_id]
+    }
+  }
+
+  storage_image_reference {
+    publisher = var.vm_image_publisher
+    offer     = var.vm_image_offer
+    sku       = var.vm_image_sku
+    version   = var.vm_image_version
+  }
+
+  container_configuration {
+    type = "DockerCompatible"
+    dynamic "container_registries" {
+      for_each = var.container_registries
+      content {
+        registry_server           = container_registries.value.registry_server
+        user_name                 = container_registries.value.user_name != null ? container_registries.value.user_name : null
+        password                  = container_registries.value.password != null ? container_registries.value.password : null
+        user_assigned_identity_id = container_registries.value.identity_id != null ? container_registries.value.identity_id : (container_registries.value.use_managed_identity ? local.worker_identity_id : null)
+      }
+    }
+  }
+
+  auto_scale {
+    evaluation_interval = "PT5M"
+    formula             = <<EOF
+      // Get pool lifetime since creation.
+      lifespan = time() - time("2024-10-30T00:00:00.880011Z");
+      interval = TimeInterval_Minute * 5;
+
+      // Compute the target nodes based on pending tasks.
+      // $PendingTasks == The sum of $ActiveTasks and $RunningTasks
+      $samples = $PendingTasks.GetSamplePercent(interval);
+      $tasks = $samples < 70 ? max(0, $PendingTasks.GetSample(1)) : max($PendingTasks.GetSample(1), avg($PendingTasks.GetSample(interval)));
+      $targetVMs = $tasks > 0 ? $tasks : max(0, $TargetDedicatedNodes/2);
+      targetPoolSize = max(${var.worker_min_pool_size}, min($targetVMs, ${var.worker_max_pool_size}));
+
+      // For first interval deploy worker_min_pool_size nodes, for other intervals scale up/down as per tasks.
+      $TargetDedicatedNodes = lifespan < interval ? ${var.worker_min_pool_size} : targetPoolSize;
+      $NodeDeallocationOption = taskcompletion;
+    EOF
+  }
+
+  start_task {
+    command_line     = local.start_task_command_line
+    wait_for_success = true
+
+    task_retry_maximum = 0
+
+    user_identity {
+      auto_user {
+        elevation_level = local.start_task_elevation_level
+        scope           = var.start_task_scope
+      }
+    }
+
+    dynamic "resource_file" {
+      for_each = var.start_task_resource_files
+      content {
+        http_url  = resource_file.value.url
+        file_path = resource_file.value.file_path
+      }
+    }
+  }
+}
+
 # Seqera Platform compute environment
 resource "seqera_compute_env" "azure_batch" {
   count        = var.create_seqera_compute_env ? 1 : 0
@@ -181,12 +278,21 @@ resource "seqera_compute_env" "azure_batch" {
 
         head_pool                  = azurerm_batch_pool.pool.name
         managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
-        subnet_id                  = var.subnet_id
-        pre_run_script             = var.seqera_pre_run_script
-        post_run_script            = var.seqera_post_run_script
-        nextflow_config            = var.seqera_nextflow_config
-        enable_wave                = var.enable_fusion
-        enable_fusion              = var.enable_fusion
+
+        worker_pool = var.enable_dual_pool ? azurerm_batch_pool.worker[0].name : null
+
+        managed_identity_head_resource_id = var.enable_dual_pool ? data.azurerm_user_assigned_identity.mi.id : null
+        managed_identity_pool_client_id   = var.enable_dual_pool ? local.worker_identity_client_id : null
+        managed_identity_pool_resource_id = var.enable_dual_pool ? local.worker_identity_id : null
+
+        subnet_id       = var.subnet_id
+        pre_run_script  = var.seqera_pre_run_script
+        post_run_script = var.seqera_post_run_script
+        nextflow_config = var.seqera_nextflow_config
+        # Fusion requires Wave, so enabling Fusion implies Wave. Wave can also
+        # be enabled on its own via var.enable_wave.
+        enable_wave   = var.enable_wave || var.enable_fusion
+        enable_fusion = var.enable_fusion
       }
     }
   }
@@ -197,8 +303,14 @@ data "azurerm_resource_group" "rg" {
   name = var.resource_group_name
 }
 
-# Get managed identity details
+# Get managed identity details (head pool / Nextflow driver)
 data "azurerm_user_assigned_identity" "mi" {
   name                = var.managed_identity_name
   resource_group_name = var.managed_identity_resource_group
+}
+
+data "azurerm_user_assigned_identity" "worker_mi" {
+  count               = local.use_separate_worker_identity ? 1 : 0
+  name                = var.worker_managed_identity_name
+  resource_group_name = coalesce(var.worker_managed_identity_resource_group, var.managed_identity_resource_group)
 }

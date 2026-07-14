@@ -8,6 +8,21 @@ output "batch_pool_id" {
   value       = azurerm_batch_pool.pool.id
 }
 
+output "worker_pool_name" {
+  description = "The name of the worker Azure Batch pool (null unless dual pool mode is enabled)"
+  value       = var.enable_dual_pool ? azurerm_batch_pool.worker[0].name : null
+}
+
+output "worker_pool_id" {
+  description = "The ID of the worker Azure Batch pool (null unless dual pool mode is enabled)"
+  value       = var.enable_dual_pool ? azurerm_batch_pool.worker[0].id : null
+}
+
+output "worker_managed_identity_client_id" {
+  description = "The client ID of the managed identity used by the worker pool (null unless dual pool mode is enabled)"
+  value       = var.enable_dual_pool ? local.worker_identity_client_id : null
+}
+
 output "managed_identity_client_id" {
   description = "The client ID of the managed identity"
   value       = data.azurerm_user_assigned_identity.mi.client_id

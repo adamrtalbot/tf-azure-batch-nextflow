@@ -160,6 +160,50 @@ vm_image_sku      = "2404"
 node_agent_sku_id = "batch.node.ubuntu 24.04"
 ```
 
+### Dual pool mode
+
+Set `enable_dual_pool = true` to create a separate worker pool alongside the existing pool. The existing pool becomes the **head pool**, which runs the Nextflow driver job. Tasks are routed to the **worker pool**. This lets the head node and workers use different VM sizes and different managed identities, which improves both efficiency (a small head node, cheap auto-scaling workers) and security posture (the head identity and worker identity can be scoped separately).
+
+Enabling dual pool mode does not change the existing pool's Terraform state: the head pool keeps the `azurerm_batch_pool.pool` address and the worker pool is added as `azurerm_batch_pool.worker[0]`. With `enable_dual_pool = false` (the default) the module behaves exactly as before.
+
+```terraform
+create_seqera_compute_env = true
+
+# Head pool (existing variables)
+batch_pool_name       = "mypool"
+vm_size               = "Standard_E8d_v5"
+min_pool_size         = 0
+max_pool_size         = 1
+managed_identity_name = "nextflow-head-id"
+
+# Worker pool
+enable_dual_pool             = true
+worker_vm_size               = "Standard_E16d_v5"
+worker_min_pool_size         = 0
+worker_max_pool_size         = 8
+worker_managed_identity_name = "nextflow-worker-id" # recommended: a distinct identity
+```
+
+Both managed identities must already exist and be resolvable via the `azurerm_user_assigned_identity` data source (name plus resource group). This module references the identities; it does not create them or assign their roles. If `worker_managed_identity_name` is omitted, the worker pool reuses the head identity, which removes the security benefit.
+
+#### Required role assignments
+
+The security benefit of dual pool mode comes entirely from scoping the two identities differently. Assign these roles (outside this module) before running a pipeline:
+
+| Identity | Role | Scope | Why |
+|----------|------|-------|-----|
+| Head (`managed_identity_name`) | Storage Blob Data Contributor | Work-directory storage account | Head node reads/writes the work directory |
+| Head (`managed_identity_name`) | Azure Batch Data Contributor | Batch account | Head node (Nextflow driver) submits tasks to the worker pool |
+| Worker (`worker_managed_identity_name`) | Storage Blob Data Contributor | Work-directory storage account | Workers read/write the work directory |
+
+The worker identity deliberately gets **no Batch role** — workers only move data, they never talk to the Batch API. That least-privilege split is the point of using a separate worker identity; reusing the head identity for both pools gives every task node full Batch data-plane access.
+
+#### Provider field mapping
+
+The head/worker pool names and the per-pool managed-identity fields are set on the `seqera_compute_env` resource using the `seqeralabs/seqera` provider's manual (named-pool) config. `head_pool`, `worker_pool`, `managed_identity_client_id`, `managed_identity_head_resource_id`, `managed_identity_pool_client_id`, and `managed_identity_pool_resource_id` are all sibling `config.azure_batch` attributes at v0.41.x, so manual named pools and per-pool identities compose. `managed_identity_client_id` + `managed_identity_head_resource_id` identify the head (driver) identity; `managed_identity_pool_client_id` + `managed_identity_pool_resource_id` identify the worker-pool identity.
+
+> **Verify runtime behaviour before production use.** This four-field identity mapping matches a working Batch Forge dual-pool deployment, but Forge auto-creates its pools whereas this module wires the identities to manually created named pools. Run `terraform plan` and a test pipeline against a real workspace to confirm before relying on this in production.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -185,6 +229,7 @@ No modules.
 | Name | Type |
 |------|------|
 | [azurerm_batch_pool.pool](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/batch_pool) | resource |
+| [azurerm_batch_pool.worker](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/batch_pool) | resource |
 | [seqera_compute_env.azure_batch](https://registry.terraform.io/providers/seqeralabs/seqera/latest/docs/resources/compute_env) | resource |
 
 ## Inputs
@@ -195,7 +240,9 @@ No modules.
 | <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | n/a | yes |
 | <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use\_managed\_identity to true. When use\_managed\_identity is true, the pool's managed identity will be used. | <pre>list(object({<br>    registry_server      = string<br>    user_name            = optional(string)<br>    password             = optional(string)<br>    identity_id          = optional(string)<br>    use_managed_identity = optional(bool, false)<br>  }))</pre> | `[]` | no |
 | <a name="input_create_seqera_compute_env"></a> [create\_seqera\_compute\_env](#input\_create\_seqera\_compute\_env) | Whether to create a seqera compute environment | `bool` | `false` | no |
-| <a name="input_enable_fusion"></a> [enable\_fusion](#input\_enable\_fusion) | Enable Fusion v2 support in the compute environment. | `bool` | `false` | no |
+| <a name="input_enable_dual_pool"></a> [enable\_dual\_pool](#input\_enable\_dual\_pool) | Enable dual pool mode: create a separate worker pool alongside the existing (head) pool. The head pool runs the Nextflow driver job and tasks are routed to the worker pool. Defaults to false, in which case the module behaves exactly as before (single pool). | `bool` | `false` | no |
+| <a name="input_enable_fusion"></a> [enable\_fusion](#input\_enable\_fusion) | Enable Fusion v2 support in the compute environment. Implies enable\_wave (Fusion requires Wave). | `bool` | `false` | no |
+| <a name="input_enable_wave"></a> [enable\_wave](#input\_enable\_wave) | Enable the Wave container service in the compute environment. Automatically enabled when enable\_fusion is true; set independently to use Wave without Fusion. | `bool` | `false` | no |
 | <a name="input_managed_identity_name"></a> [managed\_identity\_name](#input\_managed\_identity\_name) | Name of the managed identity to use with Azure Batch | `string` | `"nextflow-id"` | no |
 | <a name="input_managed_identity_resource_group"></a> [managed\_identity\_resource\_group](#input\_managed\_identity\_resource\_group) | Resource group containing the managed identity | `string` | `null` | no |
 | <a name="input_max_pool_size"></a> [max\_pool\_size](#input\_max\_pool\_size) | Maximum number of VMs in the pool | `number` | `8` | no |
@@ -221,6 +268,12 @@ No modules.
 | <a name="input_vm_image_sku"></a> [vm\_image\_sku](#input\_vm\_image\_sku) | SKU of the VM image | `string` | `"2404"` | no |
 | <a name="input_vm_image_version"></a> [vm\_image\_version](#input\_vm\_image\_version) | Version of the VM image | `string` | `"latest"` | no |
 | <a name="input_vm_size"></a> [vm\_size](#input\_vm\_size) | Size of the VM to use in the Batch pool | `string` | `"Standard_E16d_v5"` | no |
+| <a name="input_worker_managed_identity_name"></a> [worker\_managed\_identity\_name](#input\_worker\_managed\_identity\_name) | Name of a separate managed identity for the worker pool (dual pool mode). Recommended for the security benefit of dual pool mode. If null, the worker pool reuses the head managed identity. | `string` | `null` | no |
+| <a name="input_worker_managed_identity_resource_group"></a> [worker\_managed\_identity\_resource\_group](#input\_worker\_managed\_identity\_resource\_group) | Resource group containing the worker managed identity. Defaults to managed\_identity\_resource\_group if not set. | `string` | `null` | no |
+| <a name="input_worker_max_pool_size"></a> [worker\_max\_pool\_size](#input\_worker\_max\_pool\_size) | Maximum number of VMs in the worker pool (dual pool mode). | `number` | `8` | no |
+| <a name="input_worker_min_pool_size"></a> [worker\_min\_pool\_size](#input\_worker\_min\_pool\_size) | Minimum number of VMs in the worker pool (dual pool mode). | `number` | `0` | no |
+| <a name="input_worker_pool_name"></a> [worker\_pool\_name](#input\_worker\_pool\_name) | Name of the worker Batch pool (dual pool mode). Defaults to '<batch\_pool\_name>-worker' if not set. | `string` | `null` | no |
+| <a name="input_worker_vm_size"></a> [worker\_vm\_size](#input\_worker\_vm\_size) | VM size for the worker pool (dual pool mode). Defaults to Standard\_E16d\_v5 (the same default as the head vm\_size); set explicitly to give workers a different size than the head node. | `string` | `"Standard_E16d_v5"` | no |
 
 ## Outputs
 
@@ -231,4 +284,7 @@ No modules.
 | <a name="output_credentials_id"></a> [credentials\_id](#output\_credentials\_id) | The ID of the credentials |
 | <a name="output_managed_identity_client_id"></a> [managed\_identity\_client\_id](#output\_managed\_identity\_client\_id) | The client ID of the managed identity |
 | <a name="output_seqera_compute_env_id"></a> [seqera\_compute\_env\_id](#output\_seqera\_compute\_env\_id) | The ID of the Seqera compute environment |
+| <a name="output_worker_managed_identity_client_id"></a> [worker\_managed\_identity\_client\_id](#output\_worker\_managed\_identity\_client\_id) | The client ID of the managed identity used by the worker pool (null unless dual pool mode is enabled) |
+| <a name="output_worker_pool_id"></a> [worker\_pool\_id](#output\_worker\_pool\_id) | The ID of the worker Azure Batch pool (null unless dual pool mode is enabled) |
+| <a name="output_worker_pool_name"></a> [worker\_pool\_name](#output\_worker\_pool\_name) | The name of the worker Azure Batch pool (null unless dual pool mode is enabled) |
 <!-- END_TF_DOCS -->
