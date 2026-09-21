@@ -184,9 +184,31 @@ variable "create_seqera_compute_env" {
 # -----------------------------------------------------------------------------
 
 variable "enable_dual_pool" {
-  description = "Enable dual pool mode: create a separate worker pool alongside the existing (head) pool. The head pool runs the Nextflow driver job and tasks are routed to the worker pool. Defaults to false, in which case the module behaves exactly as before (single pool)."
+  description = "Enable dual pool mode. In manual mode, create a separate worker pool alongside the head pool. In Batch Forge mode, ask Seqera Platform to create separate head and worker pools."
   type        = bool
   default     = false
+}
+
+variable "enable_batch_forge" {
+  description = "Let Seqera Platform Batch Forge create and own the Batch pool(s) instead of creating them with AzureRM. Requires max pool sizes of at least 1."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_batch_forge || var.create_seqera_compute_env
+    error_message = "enable_batch_forge requires create_seqera_compute_env to be true."
+  }
+
+  validation {
+    condition     = !var.enable_batch_forge || (var.max_pool_size >= 1 && (!var.enable_dual_pool || var.worker_max_pool_size >= 1))
+    error_message = "Batch Forge requires max_pool_size and, in dual pool mode, worker_max_pool_size to be at least 1."
+  }
+}
+
+variable "batch_forge_dispose_on_deletion" {
+  description = "Whether Batch Forge should delete its Platform-managed pool(s) when the compute environment is deleted."
+  type        = bool
+  default     = true
 }
 
 variable "worker_pool_name" {
@@ -288,6 +310,12 @@ variable "seqera_credentials_name" {
   default     = null
 }
 
+variable "seqera_credentials_id" {
+  description = "ID of an existing Seqera credential. Takes precedence over seqera_credentials_name and supports direct references to typed credential resources."
+  type        = string
+  default     = null
+}
+
 variable "seqera_pre_run_script" {
   description = "Optional script to run before each task execution. Can be a multi-line string using heredoc syntax."
   type        = string
@@ -308,4 +336,3 @@ variable "seqera_nextflow_config" {
   default     = null
   nullable    = true
 }
-

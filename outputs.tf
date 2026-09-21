@@ -1,21 +1,21 @@
 output "batch_pool_name" {
-  description = "The name of the Azure Batch pool"
-  value       = azurerm_batch_pool.pool.name
+  description = "The name of the manually managed Azure Batch head pool (null in Batch Forge mode)"
+  value       = var.enable_batch_forge ? null : azurerm_batch_pool.pool[0].name
 }
 
 output "batch_pool_id" {
-  description = "The ID of the Azure Batch pool"
-  value       = azurerm_batch_pool.pool.id
+  description = "The ID of the manually managed Azure Batch head pool (null in Batch Forge mode)"
+  value       = var.enable_batch_forge ? null : azurerm_batch_pool.pool[0].id
 }
 
 output "worker_pool_name" {
-  description = "The name of the worker Azure Batch pool (null unless dual pool mode is enabled)"
-  value       = var.enable_dual_pool ? azurerm_batch_pool.worker[0].name : null
+  description = "The name of the manually managed worker Azure Batch pool (null unless manual dual pool mode is enabled)"
+  value       = var.enable_dual_pool && !var.enable_batch_forge ? azurerm_batch_pool.worker[0].name : null
 }
 
 output "worker_pool_id" {
-  description = "The ID of the worker Azure Batch pool (null unless dual pool mode is enabled)"
-  value       = var.enable_dual_pool ? azurerm_batch_pool.worker[0].id : null
+  description = "The ID of the manually managed worker Azure Batch pool (null unless manual dual pool mode is enabled)"
+  value       = var.enable_dual_pool && !var.enable_batch_forge ? azurerm_batch_pool.worker[0].id : null
 }
 
 output "worker_managed_identity_client_id" {
@@ -37,6 +37,3 @@ output "seqera_compute_env_id" {
   description = "The ID of the Seqera compute environment"
   value       = var.create_seqera_compute_env ? seqera_compute_env.azure_batch[0].compute_env_id : null
 }
-
-
-

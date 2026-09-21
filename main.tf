@@ -24,7 +24,7 @@ provider "seqera" {
 
 # Get credentials by name using seqera_credentials data source
 data "seqera_credentials" "workspace_credentials" {
-  count        = var.create_seqera_compute_env ? 1 : 0
+  count        = var.create_seqera_compute_env && var.seqera_credentials_id == null ? 1 : 0
   workspace_id = var.seqera_workspace_id
 }
 
@@ -41,6 +41,27 @@ locals {
   use_separate_worker_identity = var.enable_dual_pool && var.worker_managed_identity_name != null
   worker_identity_id           = local.use_separate_worker_identity ? data.azurerm_user_assigned_identity.worker_mi[0].id : data.azurerm_user_assigned_identity.mi.id
   worker_identity_client_id    = local.use_separate_worker_identity ? data.azurerm_user_assigned_identity.worker_mi[0].client_id : data.azurerm_user_assigned_identity.mi.client_id
+
+  # Manual mode references pools managed by AzureRM. Forge mode lets Seqera
+  # Platform create and own the pools, so the two configurations are mutually
+  # exclusive in the compute-environment payload.
+  forge_config = var.enable_batch_forge ? {
+    vm_type             = var.enable_dual_pool ? null : var.vm_size
+    vm_count            = var.max_pool_size
+    auto_scale          = var.enable_dual_pool ? null : true
+    dispose_on_deletion = var.batch_forge_dispose_on_deletion
+    dual_pool_config    = var.enable_dual_pool
+    head_pool = var.enable_dual_pool ? {
+      vm_type    = var.vm_size
+      vm_count   = var.max_pool_size
+      auto_scale = true
+    } : null
+    worker_pool = var.enable_dual_pool ? {
+      vm_type    = var.worker_vm_size
+      vm_count   = var.worker_max_pool_size
+      auto_scale = true
+    } : null
+  } : null
 
   # AppArmor profile required for Fusion to mount its FUSE filesystem on hosts
   # that enforce AppArmor (Ubuntu 24.04+). Seqera Platform automatically passes
@@ -71,16 +92,53 @@ locals {
   start_task_elevation_level = var.enable_fusion ? "Admin" : var.start_task_elevation_level
 
   # Create a map of credentials indexed by name for easy lookup
-  credentials_map = var.create_seqera_compute_env ? {
+  credentials_map = var.create_seqera_compute_env && var.seqera_credentials_id == null ? {
     for cred in data.seqera_credentials.workspace_credentials[0].credentials : cred.name => cred
   } : {}
 
-  # Look up the credential ID by name
-  credentials_id = var.create_seqera_compute_env && var.seqera_credentials_name != null ? lookup(local.credentials_map, var.seqera_credentials_name, null).id : null
+  # Prefer an explicit credential ID; otherwise look up the configured name.
+  credentials_id = !var.create_seqera_compute_env ? null : var.seqera_credentials_id != null ? var.seqera_credentials_id : try(local.credentials_map[var.seqera_credentials_name].id, null)
+
+  azure_batch_config = {
+    region   = data.azurerm_resource_group.rg.location
+    work_dir = var.seqera_work_dir
+
+    head_pool                  = var.enable_batch_forge ? null : azurerm_batch_pool.pool[0].name
+    managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
+
+    worker_pool = var.enable_dual_pool && !var.enable_batch_forge ? azurerm_batch_pool.worker[0].name : null
+
+    # Resource IDs instruct Forge which identities to attach while creating
+    # pools. Manual pools already have identities attached by AzureRM and
+    # Platform rejects resource IDs for manual compute environments.
+    managed_identity_head_resource_id = var.enable_batch_forge ? data.azurerm_user_assigned_identity.mi.id : null
+    managed_identity_pool_client_id   = var.enable_dual_pool ? local.worker_identity_client_id : (var.enable_batch_forge ? data.azurerm_user_assigned_identity.mi.client_id : null)
+    managed_identity_pool_resource_id = var.enable_batch_forge ? local.worker_identity_id : null
+
+    forge = local.forge_config
+
+    subnet_id       = var.subnet_id
+    pre_run_script  = var.seqera_pre_run_script
+    post_run_script = var.seqera_post_run_script
+    nextflow_config = var.seqera_nextflow_config
+    # Fusion requires Wave, so enabling Fusion implies Wave. Wave can also
+    # be enabled on its own via var.enable_wave.
+    enable_wave   = var.enable_wave || var.enable_fusion
+    enable_fusion = var.enable_fusion
+  }
 }
 
-# Batch pool
+# Preserve the existing manual-pool state address after making pool creation
+# conditional for Batch Forge mode.
+moved {
+  from = azurerm_batch_pool.pool
+  to   = azurerm_batch_pool.pool[0]
+}
+
+# Batch pool (manual mode only)
 resource "azurerm_batch_pool" "pool" {
+  count = var.enable_batch_forge ? 0 : 1
+
   name                = var.batch_pool_name
   resource_group_name = var.resource_group_name
   account_name        = var.batch_account_name
@@ -173,7 +231,7 @@ resource "azurerm_batch_pool" "pool" {
 
 # Worker pool (dual pool mode only)
 resource "azurerm_batch_pool" "worker" {
-  count = var.enable_dual_pool ? 1 : 0
+  count = var.enable_dual_pool && !var.enable_batch_forge ? 1 : 0
 
   name                = local.worker_pool_name
   resource_group_name = var.resource_group_name
@@ -272,28 +330,7 @@ resource "seqera_compute_env" "azure_batch" {
     credentials_id = local.credentials_id
 
     config = {
-      azure_batch = {
-        region   = data.azurerm_resource_group.rg.location
-        work_dir = var.seqera_work_dir
-
-        head_pool                  = azurerm_batch_pool.pool.name
-        managed_identity_client_id = data.azurerm_user_assigned_identity.mi.client_id
-
-        worker_pool = var.enable_dual_pool ? azurerm_batch_pool.worker[0].name : null
-
-        managed_identity_head_resource_id = var.enable_dual_pool ? data.azurerm_user_assigned_identity.mi.id : null
-        managed_identity_pool_client_id   = var.enable_dual_pool ? local.worker_identity_client_id : null
-        managed_identity_pool_resource_id = var.enable_dual_pool ? local.worker_identity_id : null
-
-        subnet_id       = var.subnet_id
-        pre_run_script  = var.seqera_pre_run_script
-        post_run_script = var.seqera_post_run_script
-        nextflow_config = var.seqera_nextflow_config
-        # Fusion requires Wave, so enabling Fusion implies Wave. Wave can also
-        # be enabled on its own via var.enable_wave.
-        enable_wave   = var.enable_wave || var.enable_fusion
-        enable_fusion = var.enable_fusion
-      }
+      azure_batch = local.azure_batch_config
     }
   }
 }

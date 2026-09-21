@@ -1,6 +1,6 @@
 # Azure Batch Pool for Nextflow
 
-This Terraform configuration creates an Azure Batch pool optimized for running Nextflow workflows. The pool is configured with Ubuntu containers and includes the necessary tools for Nextflow execution.
+This Terraform configuration creates Azure Batch pools optimized for running Nextflow workflows, either directly with AzureRM or through Seqera Platform Batch Forge.
 
 ## Description
 
@@ -162,9 +162,9 @@ node_agent_sku_id = "batch.node.ubuntu 24.04"
 
 ### Dual pool mode
 
-Set `enable_dual_pool = true` to create a separate worker pool alongside the existing pool. The existing pool becomes the **head pool**, which runs the Nextflow driver job. Tasks are routed to the **worker pool**. This lets the head node and workers use different VM sizes and different managed identities, which improves both efficiency (a small head node, cheap auto-scaling workers) and security posture (the head identity and worker identity can be scoped separately).
+Set `enable_dual_pool = true` to use a separate worker pool alongside the head pool. The head pool runs the Nextflow driver job and tasks are routed to the worker pool. This lets the pools use different VM sizes and managed identities.
 
-Enabling dual pool mode does not change the existing pool's Terraform state: the head pool keeps the `azurerm_batch_pool.pool` address and the worker pool is added as `azurerm_batch_pool.worker[0]`. With `enable_dual_pool = false` (the default) the module behaves exactly as before.
+By default, Terraform creates and manages both pools. The included `moved` block preserves existing `azurerm_batch_pool.pool` state when upgrading to this version.
 
 ```terraform
 create_seqera_compute_env = true
@@ -186,6 +186,31 @@ worker_managed_identity_name = "nextflow-worker-id" # recommended: a distinct id
 
 Both managed identities must already exist and be resolvable via the `azurerm_user_assigned_identity` data source (name plus resource group). This module references the identities; it does not create them or assign their roles. If `worker_managed_identity_name` is omitted, the worker pool reuses the head identity, which removes the security benefit.
 
+### Batch Forge mode
+
+Set `enable_batch_forge = true` to let Seqera Platform create and own the pool or pools. In this mode, Terraform does not create `azurerm_batch_pool` resources; the VM sizes and maximum pool sizes are passed to Batch Forge instead. `create_seqera_compute_env` must also be enabled for Forge to create anything.
+
+```terraform
+create_seqera_compute_env = true
+enable_batch_forge        = true
+enable_dual_pool          = true
+
+# Forge head pool
+vm_size       = "Standard_E8d_v5"
+max_pool_size = 1
+
+# Forge worker pool
+worker_vm_size       = "Standard_E16d_v5"
+worker_max_pool_size = 8
+
+managed_identity_name        = "nextflow-head-id"
+worker_managed_identity_name = "nextflow-worker-id"
+```
+
+Batch Forge requires an existing Azure Entra credential with permission to create pools and attach the configured identities. This configuration does not create the credential: set `seqera_credentials_name` to select one already available in the workspace, or pass `seqera_credentials_id` directly from a `seqera_azure_entra_credential` resource. `batch_forge_dispose_on_deletion` defaults to `true`, so deleting the compute environment also deletes its Forge-managed pools. The VM image, start-task/AzCopy, and `container_registries` settings apply only to Terraform-managed manual pools.
+
+Switching an existing deployment between manual and Forge mode replaces the compute environment and intentionally removes the pools owned by the previous mode. Review the plan before applying this transition.
+
 #### Required role assignments
 
 The security benefit of dual pool mode comes entirely from scoping the two identities differently. Assign these roles (outside this module) before running a pipeline:
@@ -200,9 +225,9 @@ The worker identity deliberately gets **no Batch role** — workers only move da
 
 #### Provider field mapping
 
-The head/worker pool names and the per-pool managed-identity fields are set on the `seqera_compute_env` resource using the `seqeralabs/seqera` provider's manual (named-pool) config. `head_pool`, `worker_pool`, `managed_identity_client_id`, `managed_identity_head_resource_id`, `managed_identity_pool_client_id`, and `managed_identity_pool_resource_id` are all sibling `config.azure_batch` attributes at v0.41.x, so manual named pools and per-pool identities compose. `managed_identity_client_id` + `managed_identity_head_resource_id` identify the head (driver) identity; `managed_identity_pool_client_id` + `managed_identity_pool_resource_id` identify the worker-pool identity.
+Manual mode sends the named `head_pool` and optional `worker_pool` plus managed-identity client IDs. The identities are attached directly to those pools by AzureRM, so managed-identity resource IDs are deliberately omitted from the Platform configuration.
 
-> **Verify runtime behaviour before production use.** This four-field identity mapping matches a working Batch Forge dual-pool deployment, but Forge auto-creates its pools whereas this module wires the identities to manually created named pools. Run `terraform plan` and a test pipeline against a real workspace to confirm before relying on this in production.
+Forge mode sends a `forge` block and omits the manual pool names. It includes both client IDs and Azure resource IDs so Platform can attach the correct identity while creating each pool. In single-pool Forge mode, the head identity is used for both roles.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -237,10 +262,12 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_batch_account_name"></a> [batch\_account\_name](#input\_batch\_account\_name) | Name of the existing Batch account | `string` | n/a | yes |
+| <a name="input_batch_forge_dispose_on_deletion"></a> [batch\_forge\_dispose\_on\_deletion](#input\_batch\_forge\_dispose\_on\_deletion) | Whether Batch Forge should delete its Platform-managed pool(s) when the compute environment is deleted. | `bool` | `true` | no |
 | <a name="input_batch_pool_name"></a> [batch\_pool\_name](#input\_batch\_pool\_name) | Name of the Batch pool to be created | `string` | n/a | yes |
 | <a name="input_container_registries"></a> [container\_registries](#input\_container\_registries) | List of container registries to be used in the Batch pool's container configuration. For each registry, provide either username+password OR set use\_managed\_identity to true. When use\_managed\_identity is true, the pool's managed identity will be used. | <pre>list(object({<br>    registry_server      = string<br>    user_name            = optional(string)<br>    password             = optional(string)<br>    identity_id          = optional(string)<br>    use_managed_identity = optional(bool, false)<br>  }))</pre> | `[]` | no |
 | <a name="input_create_seqera_compute_env"></a> [create\_seqera\_compute\_env](#input\_create\_seqera\_compute\_env) | Whether to create a seqera compute environment | `bool` | `false` | no |
-| <a name="input_enable_dual_pool"></a> [enable\_dual\_pool](#input\_enable\_dual\_pool) | Enable dual pool mode: create a separate worker pool alongside the existing (head) pool. The head pool runs the Nextflow driver job and tasks are routed to the worker pool. Defaults to false, in which case the module behaves exactly as before (single pool). | `bool` | `false` | no |
+| <a name="input_enable_batch_forge"></a> [enable\_batch\_forge](#input\_enable\_batch\_forge) | Let Seqera Platform Batch Forge create and own the Batch pool(s) instead of creating them with AzureRM. Requires max pool sizes of at least 1. | `bool` | `false` | no |
+| <a name="input_enable_dual_pool"></a> [enable\_dual\_pool](#input\_enable\_dual\_pool) | Enable dual pool mode. In manual mode, create a separate worker pool alongside the head pool. In Batch Forge mode, ask Seqera Platform to create separate head and worker pools. | `bool` | `false` | no |
 | <a name="input_enable_fusion"></a> [enable\_fusion](#input\_enable\_fusion) | Enable Fusion v2 support in the compute environment. Implies enable\_wave (Fusion requires Wave). | `bool` | `false` | no |
 | <a name="input_enable_wave"></a> [enable\_wave](#input\_enable\_wave) | Enable the Wave container service in the compute environment. Automatically enabled when enable\_fusion is true; set independently to use Wave without Fusion. | `bool` | `false` | no |
 | <a name="input_managed_identity_name"></a> [managed\_identity\_name](#input\_managed\_identity\_name) | Name of the managed identity to use with Azure Batch | `string` | `"nextflow-id"` | no |
@@ -252,6 +279,7 @@ No modules.
 | <a name="input_seqera_access_token"></a> [seqera\_access\_token](#input\_seqera\_access\_token) | Seqera API access token which must be generated from the Seqera Platform UI. | `string` | `null` | no |
 | <a name="input_seqera_api_endpoint"></a> [seqera\_api\_endpoint](#input\_seqera\_api\_endpoint) | Seqera API endpoint URL. | `string` | `"https://api.cloud.seqera.io"` | no |
 | <a name="input_seqera_compute_env_name"></a> [seqera\_compute\_env\_name](#input\_seqera\_compute\_env\_name) | Name of the Seqera compute environment. Defaults to batch\_pool\_name if not specified | `string` | `null` | no |
+| <a name="input_seqera_credentials_id"></a> [seqera\_credentials\_id](#input\_seqera\_credentials\_id) | ID of an existing Seqera credential. Takes precedence over seqera\_credentials\_name and supports direct references to typed credential resources. | `string` | `null` | no |
 | <a name="input_seqera_credentials_name"></a> [seqera\_credentials\_name](#input\_seqera\_credentials\_name) | Name of the credentials in the workspace | `string` | `null` | no |
 | <a name="input_seqera_nextflow_config"></a> [seqera\_nextflow\_config](#input\_seqera\_nextflow\_config) | Optional Nextflow config content to be used in the compute environment. Can be a multi-line string using heredoc syntax. | `string` | `null` | no |
 | <a name="input_seqera_post_run_script"></a> [seqera\_post\_run\_script](#input\_seqera\_post\_run\_script) | Optional script to run after each task execution. Can be a multi-line string using heredoc syntax. | `string` | `null` | no |
@@ -279,12 +307,12 @@ No modules.
 
 | Name | Description |
 |------|-------------|
-| <a name="output_batch_pool_id"></a> [batch\_pool\_id](#output\_batch\_pool\_id) | The ID of the Azure Batch pool |
-| <a name="output_batch_pool_name"></a> [batch\_pool\_name](#output\_batch\_pool\_name) | The name of the Azure Batch pool |
+| <a name="output_batch_pool_id"></a> [batch\_pool\_id](#output\_batch\_pool\_id) | The ID of the manually managed Azure Batch head pool (null in Batch Forge mode) |
+| <a name="output_batch_pool_name"></a> [batch\_pool\_name](#output\_batch\_pool\_name) | The name of the manually managed Azure Batch head pool (null in Batch Forge mode) |
 | <a name="output_credentials_id"></a> [credentials\_id](#output\_credentials\_id) | The ID of the credentials |
 | <a name="output_managed_identity_client_id"></a> [managed\_identity\_client\_id](#output\_managed\_identity\_client\_id) | The client ID of the managed identity |
 | <a name="output_seqera_compute_env_id"></a> [seqera\_compute\_env\_id](#output\_seqera\_compute\_env\_id) | The ID of the Seqera compute environment |
 | <a name="output_worker_managed_identity_client_id"></a> [worker\_managed\_identity\_client\_id](#output\_worker\_managed\_identity\_client\_id) | The client ID of the managed identity used by the worker pool (null unless dual pool mode is enabled) |
-| <a name="output_worker_pool_id"></a> [worker\_pool\_id](#output\_worker\_pool\_id) | The ID of the worker Azure Batch pool (null unless dual pool mode is enabled) |
-| <a name="output_worker_pool_name"></a> [worker\_pool\_name](#output\_worker\_pool\_name) | The name of the worker Azure Batch pool (null unless dual pool mode is enabled) |
+| <a name="output_worker_pool_id"></a> [worker\_pool\_id](#output\_worker\_pool\_id) | The ID of the manually managed worker Azure Batch pool (null unless manual dual pool mode is enabled) |
+| <a name="output_worker_pool_name"></a> [worker\_pool\_name](#output\_worker\_pool\_name) | The name of the manually managed worker Azure Batch pool (null unless manual dual pool mode is enabled) |
 <!-- END_TF_DOCS -->
