@@ -22,6 +22,11 @@ variable "max_pool_size" {
   description = "Maximum number of VMs in the pool"
   type        = number
   default     = 8
+
+  validation {
+    condition     = var.max_pool_size >= var.min_pool_size
+    error_message = "max_pool_size must be greater than or equal to min_pool_size."
+  }
 }
 
 variable "vm_image_publisher" {
@@ -99,7 +104,13 @@ variable "start_task_scope" {
 }
 
 variable "enable_fusion" {
-  description = "Enable Fusion v2 support in the compute environment."
+  description = "Enable Fusion v2 support in the compute environment. Implies enable_wave (Fusion requires Wave)."
+  type        = bool
+  default     = false
+}
+
+variable "enable_wave" {
+  description = "Enable the Wave container service in the compute environment. Automatically enabled when enable_fusion is true; set independently to use Wave without Fusion."
   type        = bool
   default     = false
 }
@@ -126,6 +137,11 @@ variable "min_pool_size" {
   description = "Minimum number of VMs in the pool"
   type        = number
   default     = 0
+
+  validation {
+    condition     = var.min_pool_size >= 0
+    error_message = "min_pool_size must be greater than or equal to 0."
+  }
 }
 
 variable "container_registries" {
@@ -161,6 +177,89 @@ variable "create_seqera_compute_env" {
   description = "Whether to create a seqera compute environment"
   type        = bool
   default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Dual pool mode
+# -----------------------------------------------------------------------------
+
+variable "enable_dual_pool" {
+  description = "Enable dual pool mode. In manual mode, create a separate worker pool alongside the head pool. In Batch Forge mode, ask Seqera Platform to create separate head and worker pools."
+  type        = bool
+  default     = false
+}
+
+variable "enable_batch_forge" {
+  description = "Let Seqera Platform Batch Forge create and own the Batch pool(s) instead of creating them with AzureRM. Requires max pool sizes of at least 1."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_batch_forge || var.create_seqera_compute_env
+    error_message = "enable_batch_forge requires create_seqera_compute_env to be true."
+  }
+
+  validation {
+    condition     = !var.enable_batch_forge || (var.max_pool_size >= 1 && (!var.enable_dual_pool || var.worker_max_pool_size >= 1))
+    error_message = "Batch Forge requires max_pool_size and, in dual pool mode, worker_max_pool_size to be at least 1."
+  }
+}
+
+variable "batch_forge_dispose_on_deletion" {
+  description = "Whether Batch Forge should delete its Platform-managed pool(s) when the compute environment is deleted."
+  type        = bool
+  default     = true
+}
+
+variable "worker_pool_name" {
+  description = "Name of the worker Batch pool (dual pool mode). Defaults to '<batch_pool_name>-worker' if not set."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.worker_pool_name == null || var.worker_pool_name != var.batch_pool_name
+    error_message = "worker_pool_name must differ from batch_pool_name; the head and worker pools cannot share a name."
+  }
+}
+
+variable "worker_vm_size" {
+  description = "VM size for the worker pool (dual pool mode). Defaults to Standard_E16d_v5 (the same default as the head vm_size); set explicitly to give workers a different size than the head node."
+  type        = string
+  default     = "Standard_E16d_v5"
+}
+
+variable "worker_min_pool_size" {
+  description = "Minimum number of VMs in the worker pool (dual pool mode)."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.worker_min_pool_size >= 0
+    error_message = "worker_min_pool_size must be greater than or equal to 0."
+  }
+}
+
+variable "worker_max_pool_size" {
+  description = "Maximum number of VMs in the worker pool (dual pool mode)."
+  type        = number
+  default     = 8
+
+  validation {
+    condition     = var.worker_max_pool_size >= var.worker_min_pool_size
+    error_message = "worker_max_pool_size must be greater than or equal to worker_min_pool_size."
+  }
+}
+
+variable "worker_managed_identity_name" {
+  description = "Name of a separate managed identity for the worker pool (dual pool mode). Recommended for the security benefit of dual pool mode. If null, the worker pool reuses the head managed identity."
+  type        = string
+  default     = null
+}
+
+variable "worker_managed_identity_resource_group" {
+  description = "Resource group containing the worker managed identity. Defaults to managed_identity_resource_group if not set."
+  type        = string
+  default     = null
 }
 
 variable "seqera_api_endpoint" {
@@ -211,6 +310,12 @@ variable "seqera_credentials_name" {
   default     = null
 }
 
+variable "seqera_credentials_id" {
+  description = "ID of an existing Seqera credential. Takes precedence over seqera_credentials_name and supports direct references to typed credential resources."
+  type        = string
+  default     = null
+}
+
 variable "seqera_pre_run_script" {
   description = "Optional script to run before each task execution. Can be a multi-line string using heredoc syntax."
   type        = string
@@ -231,4 +336,3 @@ variable "seqera_nextflow_config" {
   default     = null
   nullable    = true
 }
-
